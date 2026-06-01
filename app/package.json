@@ -1,0 +1,45 @@
+{
+  "name": "rudder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "eval": "tsx eval/recall.ts",
+    "vec:smoke": "tsx scripts/vec-smoke.ts",
+    "recall:store": "tsx eval/recall-store.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts",
+    "recall:why": "tsx scripts/recall-why.ts",
+    "ingest:md": "tsx scripts/ingest-md.ts",
+    "memory:reset": "tsx scripts/memory-reset.ts",
+    "mcp": "tsx scripts/mcp-server.ts"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "adm-zip": "^0.5.17",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.0",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.16.0",
+    "next": "16.2.6",
+    "openai": "^6.38.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-force-graph-2d": "^1.29.1",
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "tailwindcss": "^4",
+    "tsx": "^4.22.3",
+    "typescript": "^5"
+  }
+}

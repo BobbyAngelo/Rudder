@@ -1,0 +1,9 @@
+#!/bin/bash
+# Rudder CLI launcher
+# Usage: ./rudder [command]
+# Example: ./rudder health
+#          ./rudder db status
+#          ./rudder dev
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec npx tsx "$DIR/cli/src/index.ts" "$@"
