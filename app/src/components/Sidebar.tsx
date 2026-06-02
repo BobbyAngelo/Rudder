@@ -118,11 +118,11 @@ export function Sidebar() {
       <div className="h-14 flex items-center px-4 shrink-0 border-b" style={{ borderColor: "var(--color-sidebar-border)" }}>
         <Link href="/" className="flex items-center gap-2.5 group">
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-transform group-hover:scale-105"
             style={{
-              background: "var(--color-accent-dim)",
-              color: "var(--color-accent)",
-              border: "1px solid rgba(52, 211, 153, 0.2)",
+              background: "var(--color-accent-gradient)",
+              color: "#04130c",
+              boxShadow: "var(--shadow-accent-glow), inset 0 1px 0 rgba(255,255,255,0.2)",
             }}
           >
             R
@@ -264,8 +264,8 @@ function SidebarLink({
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] transition-all duration-150 group ${
-        active ? "font-medium" : ""
+      className={`relative flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] transition-all duration-150 group ${
+        active ? "font-medium" : "hover:bg-white/[0.03]"
       }`}
       style={{
         background: active ? "var(--color-surface-elevated)" : "transparent",
@@ -277,10 +277,16 @@ function SidebarLink({
         opacity: subtle && !active ? 0.7 : 1,
       }}
     >
+      {active && (
+        <span
+          className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2.5px] rounded-full"
+          style={{ background: "var(--color-accent)", boxShadow: "0 0 8px rgba(52,211,153,0.5)" }}
+        />
+      )}
       <span
         className="transition-colors"
         style={{
-          color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+          color: active ? "var(--color-accent)" : "var(--color-text-muted)",
         }}
       >
         {icon}
