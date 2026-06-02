@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 
-const TARS_ROOT = join(process.cwd(), "..");
+const REPO_ROOT = join(process.cwd(), "..");
 
 type DriveRecord = {
   id: string;
@@ -28,7 +28,7 @@ type FolderNode = {
 };
 
 function getDriveRegistry(): DriveRecord[] {
-  const dbPath = join(TARS_ROOT, "data", "drives", "drives-database.json");
+  const dbPath = join(REPO_ROOT, "data", "drives", "drives-database.json");
   if (!existsSync(dbPath)) return [];
   try {
     const data = JSON.parse(readFileSync(dbPath, "utf-8"));
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       const drive = registry.find(d => d.id === driveId);
       if (!drive) return NextResponse.json({ error: "Unknown drive" }, { status: 404 });
 
-      const manifestPath = join(TARS_ROOT, drive.manifestFile);
+      const manifestPath = join(REPO_ROOT, drive.manifestFile);
       if (!existsSync(manifestPath)) {
         return NextResponse.json({
           ...drive,
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
 
     // Return all drives summary
     const results = registry.map(drive => {
-      const manifestPath = join(TARS_ROOT, drive.manifestFile);
+      const manifestPath = join(REPO_ROOT, drive.manifestFile);
       const hasManifest = existsSync(manifestPath);
       const mounted = existsSync(drive.mountPath);
 
