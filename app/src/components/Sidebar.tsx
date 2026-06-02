@@ -30,6 +30,7 @@ import {
   Image,
   Video,
   Brain,
+  Mic,
 } from "lucide-react";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { MODULE_REGISTRY, getModulesByGroup, type RudderModule } from "@/lib/modules";
@@ -145,13 +146,19 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* ── Dashboard Link ── */}
-      <div className="px-2 pt-3 pb-1">
+      {/* ── Dashboard + Capture Links ── */}
+      <div className="px-2 pt-3 pb-1 space-y-0.5">
         <SidebarLink
           href="/"
           label="Mission Control"
           icon={<LayoutDashboard size={15} />}
           active={pathname === "/"}
+        />
+        <SidebarLink
+          href="/capture"
+          label="Capture Session"
+          icon={<Mic size={15} />}
+          active={pathname.startsWith("/capture")}
         />
       </div>
 
