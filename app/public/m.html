@@ -293,7 +293,7 @@ $("#server").value=LS.getItem("rudder_server")||"";
 $("#token").value=LS.getItem("rudder_token")||"";
 $("#ctxNote").innerHTML = secure
   ? 'Secure context ✓ — audio recording is available.'
-  : '<span class="warn">Not a secure context</span> — phone audio needs HTTPS (e.g. Tailscale Serve, or reach Rudder via https). Typed sessions work now.';
+  : '<span class="warn">Not a secure context</span> — phone audio needs HTTPS. Easiest: Tailscale Serve (5-min setup in <b>docs/phone-https.md</b>). Typed sessions work right now.';
 $("#gear").onclick=()=>$("#settings").classList.toggle("hidden");
 $("#saveSettings").onclick=()=>{
   LS.setItem("rudder_server",$("#server").value.trim());
