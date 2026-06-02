@@ -17,6 +17,19 @@ only by *your* devices on *your* private network (your "tailnet").
 > Use **Serve**, not **Funnel**. Serve = private to your devices. Funnel = public
 > internet. You want Serve.
 
+## One command
+
+Once Tailscale is installed and you're signed in, from the repo root:
+
+```bash
+./phone-https.sh        # serves Rudder over HTTPS and prints your phone URL
+./phone-https.sh off    # tears it down
+```
+
+That script does the steps below for you (and prints the exact
+`https://<your-mac>.<tailnet>.ts.net/m.html` to open on your phone). The manual
+version:
+
 ## Setup (recommended: Tailscale Serve)
 
 1. **Install Tailscale** on your Mac and your phone, signed into the **same account**:
