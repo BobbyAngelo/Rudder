@@ -53,3 +53,16 @@ export function getSessionKind(id: string | undefined | null): SessionKind | und
   if (!id) return undefined;
   return SESSION_KINDS.find((k) => k.id === id);
 }
+
+/** Lookup a kind by its human label (how it's stored in titles, e.g. "Meeting"). */
+export function getSessionKindByLabel(label: string | undefined | null): SessionKind | undefined {
+  if (!label) return undefined;
+  return SESSION_KINDS.find((k) => k.label === label);
+}
+
+/**
+ * The `source` values produced by capture clients. Used to group everything
+ * captured-as-a-session under the Memory "Captured" view. "capture" is the
+ * /api/ingest default for unlabeled audio; the rest are the named clients.
+ */
+export const CAPTURE_SOURCES = ["laptop", "phone", "esp32", "pendant", "capture", "session"];
