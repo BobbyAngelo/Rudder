@@ -92,6 +92,13 @@ Connect a source once; Rudder indexes it into local memory and re-syncs only wha
 
 You can also **drag any file** straight onto the Connectors page for a one-off capture, or POST to the local `/api/ingest` door from your own devices.
 
+> **Capturing live sessions — early preview.** There's also a **Capture** tab (and a
+> thin phone client at `/m.html`) for recording a moment of life — a meeting, an idea, a
+> call — picking its type, tagging it, and sending it to memory, the same way Apple Health
+> starts a workout. It works today on the laptop and (typed) on the phone; the session
+> protocol and the small capture devices that speak it are still taking shape. Treat it as
+> a preview of where Rudder is going, not a finished surface.
+
 ## Use it from your existing AI (MCP)
 
 Rudder ships an [MCP](https://modelcontextprotocol.io) server, so you can give the AI you *already* use — Claude Desktop, Cursor, any MCP client — a private memory of your life, locally.
