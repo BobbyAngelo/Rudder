@@ -8,8 +8,9 @@
    Modes:
      • application/json   → { source, text, title?, date?, id?, people? }
                             or { items: [ ...same... ] }   (batch)
-     • multipart/form-data → field "audio" (a file) [+ source/title/date]
+     • multipart/form-data → field "audio" (a file) [+ source/title/date/kind/people]
                             → transcribed via WHISPER_URL, then ingested
+                            ("people" = comma-separated or JSON array)
    ═══════════════════════════════════════════════════════ */
 
 import { NextResponse } from "next/server";
@@ -44,10 +45,25 @@ export async function POST(request: Request) {
       const file = form.get("audio") as File | null;
       if (!file) return NextResponse.json({ error: "No 'audio' file" }, { status: 400 });
       const text = await transcribeAudio(Buffer.from(await file.arrayBuffer()), file.name || "audio.wav");
+
+      // people may arrive as a JSON array or a comma-separated string
+      const peopleRaw = (form.get("people") as string) || "";
+      let people: string[] | undefined;
+      if (peopleRaw.trim()) {
+        try {
+          const parsed = JSON.parse(peopleRaw);
+          people = Array.isArray(parsed) ? parsed.map(String) : undefined;
+        } catch {
+          people = peopleRaw.split(",").map((p) => p.trim()).filter(Boolean);
+        }
+      }
+
       items = [{
         source: (form.get("source") as string) || "capture",
         title: (form.get("title") as string) || undefined,
         date: (form.get("date") as string) || undefined,
+        kind: (form.get("kind") as string) || undefined,
+        people: people && people.length ? people : undefined,
         text,
       }];
     } else {
