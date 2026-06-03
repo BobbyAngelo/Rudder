@@ -47,7 +47,10 @@ export async function PUT(request: Request) {
       const allowed = [
         "display_name",
         "full_name",
+        "headline",
         "bio",
+        "operating_manual",
+        "goals",
         "email",
         "phone",
         "location",
