@@ -1,0 +1,32 @@
+name: "✨ Feature request"
+description: Suggest an idea or improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Rudder makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to see? Sketch the behavior, not necessarily the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Fit with the vision
+      description: Rudder is a sovereign, local-first memory + agent layer (see VISION.md).
+      options:
+        - label: This keeps everything local — no required cloud dependency.
+          required: false

@@ -1,0 +1,41 @@
+name: "🔌 New connector"
+description: Propose (or claim) a new memory source.
+labels: ["connector"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Connectors are the heart of Rudder's community surface. A connector is one entry in
+        the registry plus a `list(config) → documents` function — enrich, embed, index, and
+        prune are shared. See CONTRIBUTING.md.
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      placeholder: "e.g. ChatGPT export, browser history, Pocket, Todoist"
+    validations:
+      required: true
+  - type: textarea
+    id: format
+    attributes:
+      label: What does the export/API look like?
+      description: File format, how a user obtains it, and what each item should become in memory (title, body, date, people).
+    validations:
+      required: true
+  - type: dropdown
+    id: deps
+    attributes:
+      label: Dependencies
+      options:
+        - Zero-dependency (pure file parsing)
+        - Needs an optional library (lazy-loaded)
+        - Needs a live API / auth
+    validations:
+      required: false
+  - type: checkboxes
+    id: claim
+    attributes:
+      label: Are you building it?
+      options:
+        - label: I'd like to implement this myself.
+          required: false
