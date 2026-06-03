@@ -6,6 +6,11 @@
 
 **Point it at your life. Ask it anything. Let it act. 100% on your own hardware.**
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-3fb950.svg)](./LICENSE)
+[![CI](https://github.com/BobbyAngelo/Rudder/actions/workflows/ci.yml/badge.svg)](https://github.com/BobbyAngelo/Rudder/actions/workflows/ci.yml)
+![Local-first](https://img.shields.io/badge/local--first-100%25%20offline-34d399)
+![Stack](https://img.shields.io/badge/Next.js%20·%20TypeScript%20·%20sqlite--vec%20·%20Ollama-18181b)
+
 [Quick start](#quick-start) · [What you can ingest](#what-you-can-ingest) · [Use it from Claude or Cursor](#use-it-from-your-existing-ai-mcp) · [How it works](#how-it-works) · [Contributing](#contributing)
 
 <!-- TODO(demo): drop the 60–90s hero-loop GIF here — it's the single highest-leverage asset.
@@ -47,8 +52,8 @@ That single loop — **ingest → ask across your whole life → act, offline** 
 **One command** — checks your tools, pulls the models, installs, and seeds a sample life:
 
 ```bash
-git clone https://github.com/<you>/rudder.git
-cd rudder
+git clone https://github.com/BobbyAngelo/Rudder.git
+cd Rudder
 ./setup.sh
 npm --prefix app run dev
 ```
@@ -62,8 +67,8 @@ ollama pull nomic-embed-text
 ollama pull llama3.2
 
 # 2. Install and seed a sample life so the demo works on a clean install
-git clone https://github.com/<you>/rudder.git
-cd rudder/app
+git clone https://github.com/BobbyAngelo/Rudder.git
+cd Rudder/app
 npm install
 npm run demo:seed
 
@@ -152,8 +157,13 @@ Rudder is built so there is nothing to trust. Your data is parsed, embedded, and
 
 ## Contributing
 
-Connectors are the community surface: adding a new source is one entry in the registry plus a `list(config) → documents` function — the enrich, embed, index, and prune machinery is shared. If you can parse a file or hit an API, you can add a memory source. See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Connectors are the community surface: adding a new source is one entry in the registry plus a `list(config) → documents` function — the enrich, embed, index, and prune machinery is shared. If you can parse a file or hit an API, you can add a memory source.
+
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — setup, project shape, conventions, PR checklist.
+- **[Good first issues](https://github.com/BobbyAngelo/Rudder/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)** — the easiest places to start (new connectors mostly).
+- **[Code of Conduct](./CODE_OF_CONDUCT.md)** · **[Security policy](./SECURITY.md)**
+- Have an idea or a question? Open an [issue](https://github.com/BobbyAngelo/Rudder/issues).
 
 ## License
 
-[MIT](./LICENSE).
+[MIT](./LICENSE) © 2026 Robert Angelo. Use it, fork it, build on it.

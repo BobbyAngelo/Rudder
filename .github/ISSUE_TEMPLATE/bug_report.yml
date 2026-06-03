@@ -1,0 +1,60 @@
+name: "🐞 Bug report"
+description: Something isn't working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Rudder. Please don't paste any of your personal data,
+        memory contents, or API keys into this report.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: I asked "…" and Rudder returned … instead of …
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `./setup.sh`
+        2. Open /memory
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `git rev-parse --short HEAD`
+    validations:
+      required: false
+  - type: dropdown
+    id: model
+    attributes:
+      label: Model backend
+      options:
+        - Ollama (local)
+        - LM Studio / OpenAI-compatible (local)
+        - Cloud fallback (Gemini/OpenAI)
+        - Not sure
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "OS, Node version (`node -v`), browser"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output from the dev server or browser console (scrub anything personal).
+      render: shell
+    validations:
+      required: false
