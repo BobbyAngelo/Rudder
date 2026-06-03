@@ -13,6 +13,7 @@ import { readFilesFolder } from "./ingest/files";
 import { readCalendar } from "./ingest/ics";
 import { readContacts } from "./ingest/vcard";
 import { readHealthExport } from "./ingest/health";
+import { readLinkedIn } from "./ingest/linkedin";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -127,7 +128,21 @@ const health: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health };
+// LinkedIn: your own "Get a copy of your data" export folder (CSVs). Parsed
+// locally — no scraping, no API. Feeds professional identity into memory.
+const linkedin: Connector = {
+  type: "linkedin",
+  label: "LinkedIn (export)",
+  config: [
+    { key: "path", label: "LinkedIn export folder", type: "path", placeholder: "/Users/you/Downloads/Basic_LinkedInDataExport" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readLinkedIn(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;
