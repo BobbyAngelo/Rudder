@@ -102,6 +102,21 @@ export function pruneConnector(db: Database.Database, connectorId: number, keepI
   return stale.length;
 }
 
+/**
+ * Remove every chunk for a given source. Used to re-index a singleton source
+ * (like "identity") cleanly so edits/removals don't leave stale memory behind.
+ */
+export function clearSource(db: Database.Database, source: string): number {
+  ensureMemory(db);
+  const rows = db.prepare("SELECT chunk_id FROM chunk_index WHERE source = ?").all(source) as { chunk_id: string }[];
+  const del = db.prepare("DELETE FROM chunk_index WHERE chunk_id = ?");
+  const tx = db.transaction((ids: string[]) => {
+    for (const id of ids) { del.run(id); deleteEmbedding(db, id); }
+  });
+  tx(rows.map((r) => r.chunk_id));
+  return rows.length;
+}
+
 export interface Source {
   id: string;
   source: string;

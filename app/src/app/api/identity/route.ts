@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDB } from "@/lib/db";
+import { indexIdentity } from "@/lib/identity";
+import { ollamaEmbed } from "@/lib/ollama";
 
 /* ═══════════════════════════════════════════════════════
    /api/identity — Profile CRUD
@@ -132,7 +134,17 @@ export async function PUT(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    // Tie identity into the brain: re-index it as a memory source so Ask and the
+    // Life Historian know who you are. Best-effort — needs the embed model running.
+    let memoryIndexed: number | null = null;
+    try {
+      const { indexed } = await indexIdentity(db, (t) => ollamaEmbed(t));
+      memoryIndexed = indexed;
+    } catch (e) {
+      console.warn("[api/identity] memory re-index skipped:", (e as Error).message);
+    }
+
+    return NextResponse.json({ success: true, memoryIndexed });
   } catch (error: any) {
     console.error("[api/identity] PUT error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
