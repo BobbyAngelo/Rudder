@@ -51,7 +51,7 @@ export const MODULE_REGISTRY: RudderModule[] = [
     icon: "User",
     group: "life",
     route: "/identity",
-    defaultEnabled: false,
+    defaultEnabled: true,
     onboardingSuggested: true,
     status: "active",
     tables: ["identity_profile", "identity_values", "identity_milestones", "identity_links"],
