@@ -6,7 +6,7 @@ export async function GET() {
     const db = getDB();
 
     // Reality Ledger count
-    const ledger = db.prepare("SELECT COUNT(*) as count FROM reality_nodes").get() as any;
+    const ledger = db.prepare("SELECT COUNT(*) as count FROM chunk_index").get() as any;
 
     // Data sources count
     const sources = db.prepare("SELECT COUNT(*) as count FROM data_sources WHERE status = 'active'").get() as any;

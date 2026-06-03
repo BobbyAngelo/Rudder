@@ -42,7 +42,3 @@ Use these exact phrasings everywhere Rudder describes itself, so metadata, READM
 - **Tagline:** "A sovereign, local-first personal operating system."
 - **One-liner:** "Your private command center for the data of your life — owned entirely by you."
 - **Metadata description:** "Rudder — a sovereign, local-first personal operating system. One private command center for your life data, run on local AI and owned entirely by you."
-
-## FLOW (removed)
-
-FLOW — the creative/ad-studio engine — has been cut from Rudder. The open-source Rudder contains no `/flow` route, no `api/flow`, no `taste_library`/`brand_contexts` tables, and no `scan-taste`/`flow-mcp` scripts. See `RELEASE.md` for how it's removed as part of release prep.
