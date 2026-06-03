@@ -31,6 +31,7 @@ import {
   Video,
   Brain,
   Mic,
+  Feather,
 } from "lucide-react";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { MODULE_REGISTRY, getModulesByGroup, type RudderModule } from "@/lib/modules";
@@ -159,6 +160,12 @@ export function Sidebar() {
           label="Capture Session"
           icon={<Mic size={15} />}
           active={pathname.startsWith("/capture")}
+        />
+        <SidebarLink
+          href="/biographer/story"
+          label="Life Historian"
+          icon={<Feather size={15} />}
+          active={pathname.startsWith("/biographer/story")}
         />
       </div>
 
