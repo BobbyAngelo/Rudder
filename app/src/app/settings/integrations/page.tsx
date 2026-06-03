@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   HardDrive, Server, Cpu, Plus, Settings, CheckCircle2, ChevronLeft,
-  X, Trash2, FolderOpen, Terminal, ChevronDown, Camera, RefreshCw,
+  X, Trash2, FolderOpen, Terminal, ChevronDown,
 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
 import Link from "next/link";
@@ -20,7 +20,6 @@ const SOURCE_TYPES = [
   { value: "folder", label: "Local Folder", icon: FolderOpen },
   { value: "drive", label: "External Drive", icon: HardDrive },
   { value: "healthkit_export", label: "Apple Health Export", icon: CheckCircle2 },
-  { value: "media_folder", label: "Personal Media Folder", icon: Camera },
 ];
 
 export default function IntegrationsPage() {
@@ -30,23 +29,6 @@ export default function IntegrationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showAddSource, setShowAddSource] = useState(false);
   const [showAddMcp, setShowAddMcp] = useState(false);
-  const [scanMessage, setScanMessage] = useState<string | null>(null);
-
-  async function triggerScan(id: number) {
-    setScanMessage("⏳ Launching background media scan...");
-    try {
-      const res = await fetch(`/api/media/scan?id=${id}`, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        setScanMessage("🚀 Media scan started in the background!");
-      } else {
-        setScanMessage(`⚠️ Scan failed to start: ${data.error}`);
-      }
-    } catch {
-      setScanMessage("⚠️ Scan failed to start.");
-    }
-    setTimeout(() => setScanMessage(null), 4000);
-  }
 
   const refresh = useCallback(() => {
     fetch("/api/integrations")
@@ -129,11 +111,6 @@ export default function IntegrationsPage() {
               <Plus size={14} /> Add Source
             </button>
           </div>
-          {scanMessage && (
-            <div className="px-3 py-2 text-[11px] font-mono rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 animate-pulse">
-              {scanMessage}
-            </div>
-          )}
           {isLoading ? (
             <div className="text-sm text-[var(--color-text-muted)] px-1">Loading...</div>
           ) : dataSources.length === 0 ? (
@@ -153,11 +130,7 @@ export default function IntegrationsPage() {
                   <CardBody className="flex items-center justify-between py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded bg-[var(--color-background-elevated)] flex items-center justify-center text-[var(--color-text-muted)]">
-                        {s.type === "media_folder" ? (
-                          <Camera size={16} className="text-pink-400" />
-                        ) : (
-                          <HardDrive size={16} />
-                        )}
+                        <HardDrive size={16} />
                       </div>
                       <div>
                         <div className="text-[13px] font-medium text-[var(--color-text-primary)] flex items-center gap-2">
@@ -175,15 +148,6 @@ export default function IntegrationsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {s.type === "media_folder" && (
-                        <button
-                          onClick={() => triggerScan(s.id)}
-                          className="text-[var(--color-text-muted)] hover:text-emerald-400 transition-colors p-1"
-                          title="Scan this media source"
-                        >
-                          <RefreshCw size={14} />
-                        </button>
-                      )}
                       <button onClick={() => deleteItem("data_sources", s.id)} className="text-[var(--color-text-dim)] hover:text-red-400 transition-colors p-1">
                         <Trash2 size={14} />
                       </button>

@@ -35,7 +35,7 @@ async function main() {
       // Lean core (on-thesis). Bespoke modules (career, writing, pala/notes,
       // photos, videos, hardware, identity) are hidden from nav by default —
       // re-enable in Settings → Modules. See REFRAME.md / BIOGRAPHER_AUDIT.md.
-      "memory", "people", "health", "biographer", "schedule", "graph",
+      "memory", "people", "health", "schedule", "graph",
     ])
   );
   console.log("  Onboarding marked complete; modules enabled.\n");

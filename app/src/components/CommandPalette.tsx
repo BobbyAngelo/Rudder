@@ -198,10 +198,8 @@ export function CommandPalette() {
     const trimmed = query.trim();
     if (trimmed.startsWith("/todo ")) return "Press Enter to create this task using NLP parsing.";
     if (trimmed.startsWith("/event ")) return "Press Enter to schedule this event using NLP parsing.";
-    if (trimmed.startsWith("/write ")) return "Press Enter to create a new draft in Zenith Studio.";
-    if (trimmed.startsWith("/ask ")) return "Press Enter to search reality nodes with AI.";
+    if (trimmed.startsWith("/ask ")) return "Press Enter to search your memory with AI.";
     if (trimmed.startsWith("/node ")) return "Press Enter to select your default AI model provider.";
-    if (trimmed.startsWith("/scan ")) return "Press Enter to run background scans (e.g. /scan media).";
     return null;
   };
 

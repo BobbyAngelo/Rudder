@@ -100,7 +100,7 @@ export function OrbitRing({ ledgerCount }: { ledgerCount: number }) {
           className="text-[9px] font-mono uppercase tracking-[0.15em]"
           style={{ color: "var(--color-text-dim)" }}
         >
-          Reality Nodes
+          Memory
         </span>
       </div>
 
