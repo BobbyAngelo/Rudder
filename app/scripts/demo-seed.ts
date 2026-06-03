@@ -32,8 +32,10 @@ async function main() {
     "UPDATE user_preferences SET onboarding_completed = 1, enabled_modules = ? WHERE id = 1"
   ).run(
     JSON.stringify([
-      "identity", "people", "health", "biographer", "schedule",
-      "graph", "career", "writing", "pala", "photos", "videos", "hardware",
+      // Lean core (on-thesis). Bespoke modules (career, writing, pala/notes,
+      // photos, videos, hardware, identity) are hidden from nav by default —
+      // re-enable in Settings → Modules. See REFRAME.md / BIOGRAPHER_AUDIT.md.
+      "memory", "people", "health", "biographer", "schedule", "graph",
     ])
   );
   console.log("  Onboarding marked complete; modules enabled.\n");
