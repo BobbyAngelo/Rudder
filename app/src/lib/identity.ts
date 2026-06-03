@@ -13,7 +13,8 @@ import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, clearSource, type EmbedFn } from "./memory";
 
 interface ProfileRow {
-  display_name?: string; full_name?: string; bio?: string; email?: string;
+  display_name?: string; full_name?: string; headline?: string; bio?: string;
+  operating_manual?: string; goals?: string; email?: string;
   phone?: string; location?: string; timezone?: string; date_of_birth?: string;
   website?: string;
 }
@@ -41,6 +42,7 @@ export function buildIdentityDocs(db: Database.Database): RawDoc[] {
   if (profile) {
     const lines: string[] = [`This is the profile of ${name} — the owner of this Rudder.`];
     if (profile.full_name && profile.full_name !== name) lines.push(`Full name: ${profile.full_name}`);
+    if (profile.headline) lines.push(profile.headline);
     if (profile.bio) lines.push(profile.bio);
     if (profile.location) lines.push(`Location: ${profile.location}`);
     if (profile.timezone) lines.push(`Timezone: ${profile.timezone}`);
@@ -51,6 +53,16 @@ export function buildIdentityDocs(db: Database.Database): RawDoc[] {
     if (lines.length > 1) {
       docs.push({ source: "identity", sourceId: "identity:profile", title: `About ${name}`, body: lines.join("\n"), people: [name] });
     }
+  }
+
+  // 1b) Operating manual — how they work / how to talk to them.
+  if (profile?.operating_manual?.trim()) {
+    docs.push({ source: "identity", sourceId: "identity:operating-manual", title: `How ${name} works`, body: `${name}'s operating manual — how they work and how to work with them:\n${profile.operating_manual.trim()}`, people: [name] });
+  }
+
+  // 1c) Goals — what they're working toward now.
+  if (profile?.goals?.trim()) {
+    docs.push({ source: "identity", sourceId: "identity:goals", title: `What ${name} is working toward`, body: `${name}'s current goals and focus:\n${profile.goals.trim()}`, people: [name] });
   }
 
   // 2) Values / principles — one doc (high-signal for aligned reasoning).

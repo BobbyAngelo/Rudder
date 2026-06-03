@@ -662,6 +662,16 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_chronicle_journey ON chronicle_narratives(journey_id);
     `,
   },
+  {
+    name: "025_identity_extend",
+    sql: `
+      -- Richer identity: a one-line headline, an "operating manual" (how you
+      -- work / how to talk to you), and what you're currently working toward.
+      ALTER TABLE identity_profile ADD COLUMN headline TEXT NOT NULL DEFAULT '';
+      ALTER TABLE identity_profile ADD COLUMN operating_manual TEXT NOT NULL DEFAULT '';
+      ALTER TABLE identity_profile ADD COLUMN goals TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];
 
 
