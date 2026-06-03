@@ -8,8 +8,8 @@
 
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
-  User, MapPin, Mail, Phone, Globe, Calendar, Clock, Plus, X, Save, Loader2,
-  Check, Target, BookOpen, Heart, Link2, Brain, Send, GripVertical,
+  User, Users, MapPin, Mail, Phone, Globe, Calendar, Clock, Plus, X, Save, Loader2,
+  Check, Target, BookOpen, Heart, Link2, Brain, Send, GripVertical, Sparkles, TrendingUp,
 } from "lucide-react";
 
 interface Profile {
@@ -21,6 +21,13 @@ interface ValueItem { label: string; description: string; }
 interface Milestone { title: string; description: string; date: string; category: string; }
 interface LinkItem { platform: string; url: string; label: string; }
 interface AskSource { id: string; source: string; title: string; date?: string; snippet: string; }
+interface Insights {
+  memoryTotal: number;
+  composition: { source: string; count: number }[];
+  topPeople: { name: string; relationship: string; warmth: number; last_contact: string | null }[];
+  recent: { title: string; source: string; date: string }[];
+  sessionKinds: { kind: string; count: number }[];
+}
 
 const CATEGORIES = ["life", "career", "education", "personal"];
 
@@ -38,6 +45,7 @@ export default function IdentityPage() {
   const [asking, setAsking] = useState(false);
   const [askAnswer, setAskAnswer] = useState("");
   const [askSources, setAskSources] = useState<AskSource[]>([]);
+  const [insights, setInsights] = useState<Insights | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -51,8 +59,15 @@ export default function IdentityPage() {
       setMilestones((d.milestones || []).map((m: any) => ({ title: m.title || "", description: m.description || "", date: m.date || "", category: m.category || "life" })));
       setLinks((d.links || []).map((l: any) => ({ platform: l.platform || "", url: l.url || "", label: l.label || "" })));
     } catch { /* empty state */ }
+    fetch("/api/identity/insights").then((r) => r.json()).then((d) => { if (!d.error) setInsights(d); }).catch(() => {});
     setLoading(false);
     setDirty(false);
+  }
+
+  function addMilestoneFromMoment(m: { title: string; date: string }) {
+    setMilestones((ms) => [{ title: m.title, description: "", date: m.date || "", category: "life" }, ...ms]);
+    mark();
+    document.getElementById("milestones-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   const mark = useCallback(() => { setDirty(true); setSaveMsg(null); }, []);
@@ -84,16 +99,24 @@ export default function IdentityPage() {
     setSaving(false);
   }
 
-  async function ask() {
-    if (askQ.trim().length < 3 || asking) return;
+  async function ask(qOverride?: string) {
+    const q = (qOverride ?? askQ).trim();
+    if (q.length < 3 || asking) return;
     setAsking(true); setAskAnswer(""); setAskSources([]);
     try {
-      const res = await fetch("/api/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: askQ }) });
+      const res = await fetch("/api/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q }) });
       const d = await res.json();
       setAskAnswer(d.answer || "No response.");
       setAskSources(Array.isArray(d.sources) ? d.sources : []);
     } catch { setAskAnswer("⚠️ Couldn't reach Rudder."); }
     setAsking(false);
+  }
+
+  function askAbout(name: string) {
+    const q = `What's my history with ${name}?`;
+    setAskQ(q);
+    ask(q);
+    document.getElementById("ask-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // Completeness signal
@@ -143,11 +166,16 @@ export default function IdentityPage() {
           {nextHint && <p style={{ fontSize: "0.78rem", color: "var(--color-text-dim)", marginTop: "0.5rem" }}>Next: {nextHint}.</p>}
         </div>
 
+        {/* ── What Rudder has learned about you (the two-way half) ── */}
+        {insights && (insights.memoryTotal > 0 || insights.topPeople.length > 0) && (
+          <LearnedPanel insights={insights} onPromote={addMilestoneFromMoment} onAsk={askAbout} />
+        )}
+
         {/* ── Ask about yourself (proves the loop) ── */}
-        <Section icon={<Brain size={15} />} title="Ask Rudder about you" subtitle="Everything below is indexed into your memory — try it.">
+        <Section id="ask-section" icon={<Brain size={15} />} title="Ask Rudder about you" subtitle="Everything below is indexed into your memory — try it.">
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <input className="modal-input" value={askQ} onChange={(e) => setAskQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} placeholder="What do I value? · What am I working toward?" style={{ flex: 1 }} />
-            <button className="btn-primary" onClick={ask} disabled={asking || askQ.trim().length < 3}>{asking ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button>
+            <button className="btn-primary" onClick={() => ask()} disabled={asking || askQ.trim().length < 3}>{asking ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button>
           </div>
           {askAnswer && (
             <div style={{ marginTop: "0.9rem", padding: "0.9rem", borderRadius: "var(--radius-sm)", background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)" }}>
@@ -195,7 +223,7 @@ export default function IdentityPage() {
         </Section>
 
         {/* ── Milestones ── */}
-        <Section icon={<Calendar size={15} />} title="Milestones" subtitle="Key moments — the first fixed points on your life story's timeline.">
+        <Section id="milestones-section" icon={<Calendar size={15} />} title="Milestones" subtitle="Key moments — the first fixed points on your life story's timeline.">
           <ListEditor
             items={milestones}
             onChange={(v) => { setMilestones(v); mark(); }}
@@ -265,9 +293,77 @@ export default function IdentityPage() {
   );
 }
 
-function Section({ icon, title, subtitle, children }: { icon: ReactNode; title: string; subtitle?: string; children: ReactNode }) {
+function LearnedPanel({ insights, onPromote, onAsk }: { insights: Insights; onPromote: (m: { title: string; date: string }) => void; onAsk: (name: string) => void }) {
   return (
-    <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
+    <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem", borderColor: "rgba(52,211,153,0.25)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.15rem" }}>
+        <span style={{ color: "var(--color-accent)" }}><Sparkles size={15} /></span>
+        <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--color-text-primary)" }}>What Rudder has learned about you</h2>
+      </div>
+      <p style={{ fontSize: "0.78rem", color: "var(--color-text-dim)", marginBottom: "1rem" }}>
+        Drawn from your memory — not what you typed. This grows as you live.
+      </p>
+
+      {insights.memoryTotal > 0 && (
+        <div style={{ marginBottom: insights.topPeople.length || insights.recent.length || insights.sessionKinds.length ? "1.1rem" : 0 }}>
+          <div style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+            Built from <strong style={{ color: "var(--color-text-primary)" }}>{insights.memoryTotal.toLocaleString()}</strong> memories across your sources.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+            {insights.composition.slice(0, 8).map((c) => (
+              <span key={c.source} className="badge-base badge-neutral">{c.source} · {c.count}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {insights.topPeople.length > 0 && (
+        <div style={{ marginBottom: insights.recent.length || insights.sessionKinds.length ? "1.1rem" : 0 }}>
+          <div className="section-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: "0.5rem" }}><Users size={12} /> The people closest to you</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            {insights.topPeople.map((p) => (
+              <div key={p.name} style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontSize: "0.88rem", color: "var(--color-text-primary)", fontWeight: 500 }}>{p.name}</span>
+                {p.relationship && <span className="badge-base badge-neutral">{p.relationship}</span>}
+                <button onClick={() => onAsk(p.name)} className="btn-ghost" style={{ marginLeft: "auto", fontSize: "0.72rem", padding: "0.2rem 0.5rem", color: "var(--color-accent)" }}>Ask about</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {insights.recent.length > 0 && (
+        <div style={{ marginBottom: insights.sessionKinds.length ? "1.1rem" : 0 }}>
+          <div className="section-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: "0.5rem" }}><TrendingUp size={12} /> Lately</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            {insights.recent.map((r, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                <span style={{ fontSize: "0.72rem", color: "var(--color-text-dim)", flexShrink: 0 }}>{r.date}</span>
+                <button onClick={() => onPromote({ title: r.title, date: r.date })} className="btn-ghost" style={{ marginLeft: "auto", flexShrink: 0, fontSize: "0.72rem", padding: "0.2rem 0.5rem", color: "var(--color-text-muted)" }} title="Add as a milestone">+ Milestone</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {insights.sessionKinds.length > 0 && (
+        <div>
+          <div className="section-label" style={{ marginBottom: "0.5rem" }}>You capture mostly</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+            {insights.sessionKinds.slice(0, 6).map((k) => (
+              <span key={k.kind} className="badge-base badge-success">{k.kind} · {k.count}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Section({ icon, title, subtitle, children, id }: { icon: ReactNode; title: string; subtitle?: string; children: ReactNode; id?: string }) {
+  return (
+    <div id={id} className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: subtitle ? "0.15rem" : "0.75rem" }}>
         <span style={{ color: "var(--color-accent)" }}>{icon}</span>
         <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--color-text-primary)" }}>{title}</h2>
