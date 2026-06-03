@@ -58,6 +58,10 @@ cd Rudder
 npm --prefix app run dev
 ```
 
+Need to debug your local prerequisites first? Run `./setup.sh --check` for a
+side-effect-free audit, or `./setup.sh --help` to print the available setup
+flags.
+
 <details>
 <summary>Or run the steps manually</summary>
 
