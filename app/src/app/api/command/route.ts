@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDB } from "@/lib/db";
 import { parseCommand } from "@/lib/nlp";
-import { spawn } from "child_process";
-import path from "path";
 
 export async function POST(req: Request) {
   try {
@@ -15,24 +13,7 @@ export async function POST(req: Request) {
     const db = getDB();
     const now = new Date().toISOString();
 
-    // 1. /write command
-    if (command.startsWith("/write")) {
-      const title = command.replace(/^\/write\s*/i, "").trim() || "Untitled Draft";
-      
-      const result = db.prepare(`
-        INSERT INTO journal_entries (title, content, mode, word_count, wpm, tags, created_at, updated_at)
-        VALUES (?, '', 'journal', 0, 0, '[]', datetime('now'), datetime('now'))
-      `).run(title);
-
-      return NextResponse.json({
-        success: true,
-        type: "write",
-        redirect: `/writing?id=${result.lastInsertRowid}`,
-        message: `✍️ Draft "${title}" created. Opening editor...`
-      });
-    }
-
-    // 2. /node command
+    // 1. /node command
     if (command.startsWith("/node")) {
       const mode = command.replace(/^\/node\s*/i, "").trim();
       const validModes = ["local_ollama", "cloud_openai", "cloud_gemini"];
@@ -99,35 +80,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. /scan command
-    if (command.startsWith("/scan")) {
-      const target = command.replace(/^\/scan\s*/i, "").trim().toLowerCase();
-      
-      if (target === "media" || !target) {
-        const importScriptPath = path.join(process.cwd(), "..", "scripts", "import.ts");
-        const child = spawn("npx", ["tsx", importScriptPath, "media"], {
-          cwd: path.join(process.cwd(), ".."),
-          detached: true,
-          stdio: "ignore",
-        });
-        child.unref();
-
-        return NextResponse.json({
-          success: true,
-          type: "scan",
-          message: "🚀 Background media scan started for all active media folders!"
-        });
-      } else {
-        return NextResponse.json({
-          success: false,
-          message: `⚠️ Unsupported scan target "${target}". Use: /scan media`
-        });
-      }
-    }
-
     return NextResponse.json({
       success: false,
-      message: `⚠️ Unknown command style. Prefix with /todo, /event, /write, /node, or /scan.`
+      message: `⚠️ Unknown command style. Prefix with /todo, /event, or /node.`
     });
 
   } catch (err: any) {

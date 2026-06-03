@@ -106,7 +106,7 @@ export function WidgetAsk() {
             value={question}
             onChange={e => setQuestion(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAsk()}
-            placeholder="Search reality nodes..."
+            placeholder="Search your memory..."
             className="w-full pl-10 pr-4 py-3 rounded-xl text-[13px] outline-none transition-all"
             style={{ background: "var(--color-background)", color: "var(--color-text-primary)", border: "1px solid var(--color-border)" }}
           />

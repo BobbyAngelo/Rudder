@@ -84,19 +84,6 @@ export const MODULE_REGISTRY: RudderModule[] = [
     emoji: "❤️",
   },
 
-  {
-    id: "biographer",
-    label: "Biographer",
-    description: "The Life Historian — turn your memory into true, cited stories in your own voice",
-    icon: "BookOpen",
-    group: "life",
-    route: "/biographer",
-    defaultEnabled: true,
-    onboardingSuggested: false,
-    status: "active",
-    emoji: "🤖",
-  },
-
   // ── Operations ──
   {
     id: "memory",
@@ -135,88 +122,6 @@ export const MODULE_REGISTRY: RudderModule[] = [
     onboardingSuggested: true,
     status: "active",
     emoji: "🕸️",
-  },
-  {
-    id: "career",
-    label: "Career Hub",
-    description: "Sovereign career vault, timeline, and real-time Gemini Live Interview Copilot",
-    icon: "Briefcase",
-    group: "operations",
-    route: "/career",
-    defaultEnabled: false,
-    onboardingSuggested: true,
-    status: "active",
-    emoji: "💼",
-  },
-
-  // ── Creative Engines ──
-  {
-    id: "writing",
-    label: "Writing",
-    description: "Word processor, journal, and long-form composition",
-    icon: "PenTool",
-    group: "creative",
-    route: "/writing",
-    defaultEnabled: false,
-    onboardingSuggested: true,
-    status: "active",
-    tables: ["journal_entries"],
-    emoji: "✍️",
-  },
-  {
-    id: "pala",
-    label: "Notes",
-    description: "Voice-driven sovereign note puck and tag engine",
-    icon: "BookMarked",
-    group: "creative",
-    route: "/pala",
-    defaultEnabled: false,
-    onboardingSuggested: true,
-    status: "active",
-    tables: ["journal_entries"],
-    emoji: "🎙️",
-  },
-  // NOTE: FLOW was removed from Rudder on 2026-05-29 and split into its own
-  // repository (see SPLIT_FLOW.md). Rudder no longer surfaces the /flow route,
-  // the api/flow endpoints, or the taste_library/brand_contexts tables.
-  {
-    id: "photos",
-    label: "Photos",
-    description: "Sovereign photo catalog, iPhoto sync, and memories feed",
-    icon: "Image",
-    group: "creative",
-    route: "/media?view=photos",
-    defaultEnabled: false,
-    onboardingSuggested: true,
-    status: "active",
-    emoji: "🖼️",
-  },
-  {
-    id: "videos",
-    label: "Videos",
-    description: "YouTube theater feed, video scanner, and player queue",
-    icon: "Video",
-    group: "creative",
-    route: "/media?view=videos",
-    defaultEnabled: false,
-    onboardingSuggested: true,
-    status: "active",
-    emoji: "📺",
-  },
-
-  // ── Infrastructure ──
-  {
-    id: "hardware",
-    label: "Hardware",
-    description: "Your devices and local compute fleet",
-    icon: "Cpu",
-    group: "infrastructure",
-    route: "/hardware",
-    defaultEnabled: false,
-    onboardingSuggested: false,
-    status: "active",
-    tables: ["hardware_projects"],
-    emoji: "🔧",
   },
 ];
 
