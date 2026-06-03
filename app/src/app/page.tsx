@@ -47,10 +47,10 @@ export default function DashboardPage() {
       try {
         setActiveWidgets(JSON.parse(saved));
       } catch {
-        setActiveWidgets(["ask", "agenda", "fleet", "orbit"]);
+        setActiveWidgets(["ask", "agenda", "orbit", "health"]);
       }
     } else {
-      setActiveWidgets(["ask", "agenda", "fleet", "orbit"]);
+      setActiveWidgets(["ask", "agenda", "orbit", "health"]);
     }
   }, []);
 
