@@ -15,6 +15,7 @@ import { readContacts } from "./ingest/vcard";
 import { readHealthExport } from "./ingest/health";
 import { readLinkedIn } from "./ingest/linkedin";
 import { readEmailMbox } from "./ingest/email";
+import { readMeta } from "./ingest/meta";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -157,7 +158,21 @@ const email: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email };
+// Meta: your own Facebook/Instagram "Download Your Information" export (JSON).
+// Shape-detecting walker (posts + message threads), fixes Meta's UTF-8 mojibake.
+const meta: Connector = {
+  type: "meta",
+  label: "Meta (FB/IG export)",
+  config: [
+    { key: "path", label: "Meta export folder (JSON)", type: "path", placeholder: "/Users/you/Downloads/facebook-export" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readMeta(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;
