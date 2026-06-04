@@ -30,6 +30,7 @@ import {
   type StoryLength,
   type Tone,
 } from "@/lib/biographer/voice";
+import { buildCriticSystemPrompt } from "@/lib/biographer/critic";
 
 const THIN_THRESHOLD = 3; // fewer cited moments than this ⇒ thin material
 
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
     const pov: PointOfView = ["memoir", "biography", "for-kids"].includes(body?.pov) ? body.pov : "memoir";
     const length: StoryLength = body?.length === "chapter" ? "chapter" : "vignette";
     const tone: Tone = ["warm", "wry", "cinematic", "spare", "literary"].includes(body?.tone) ? body.tone : "warm";
+    const polish: boolean = body?.polish !== false; // craft-critic second pass, on by default
     const topN: number = Math.min(Math.max(Number(body?.topN) || (length === "chapter" ? 12 : 8), 4), 20);
 
     const parsed = parseSubject(rawSubject);
@@ -144,6 +146,18 @@ export async function POST(request: Request) {
       });
     }
 
+    // 4b) Craft-critic pass — polish the prose without changing the facts.
+    let polished = false;
+    if (polish && story && !story.startsWith("⚠️")) {
+      try {
+        const revised = (await executeChat([
+          { role: "system", content: buildCriticSystemPrompt({ voice, tone }) },
+          { role: "user", content: `SOURCES:\n\n${contextStr}\n\n---\n\nDRAFT:\n\n${story}\n\nReturn the improved version only.` },
+        ], mode)).trim();
+        if (revised.length > 20) { story = revised; polished = true; }
+      } catch { /* keep the original draft */ }
+    }
+
     // 5) Faithfulness signals: did it cite, and was material thin?
     const citedNums = new Set((story.match(/\[(\d+)\]/g) || []).map((m) => Number(m.replace(/\D/g, ""))));
     const thin = result.sources.length < THIN_THRESHOLD;
@@ -155,6 +169,8 @@ export async function POST(request: Request) {
       era: parsed.eraLabel,
       pov,
       length,
+      tone,
+      polished,
       story,
       sources: result.sources, // [{ id, source, title, date, sourceId, snippet }] in [1..n] order
       chunksUsed: result.chunks.length,

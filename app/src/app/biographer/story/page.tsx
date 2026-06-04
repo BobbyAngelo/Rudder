@@ -18,6 +18,7 @@ interface StoryResult {
   subject: string; title?: string; era?: string; pov?: string;
   story: string; sources: Source[]; chunksUsed?: number;
   cited?: number[]; thin?: boolean; gapPrompt?: string; online?: boolean; mode?: string;
+  polished?: boolean; beats?: number; tone?: string;
   error?: string;
 }
 
@@ -60,7 +61,8 @@ export default function LifeStoryPage() {
     if (subj) setSubject(subj);
     setLoading(true); setResult(null); setActiveSrc(null);
     try {
-      const res = await fetch("/api/biographer/story", {
+      const endpoint = length === "chapter" ? "/api/biographer/chapter" : "/api/biographer/story";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ subject: s, pov, length, tone }),
@@ -143,6 +145,8 @@ export default function LifeStoryPage() {
                   <BookOpen size={16} style={{ color: "var(--color-accent)" }} />
                   <h2 style={{ fontSize: "1.15rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>{result.title || result.subject}</h2>
                   {result.era && <span className="badge-base badge-neutral">{result.era}</span>}
+                  {result.beats ? <span className="badge-base badge-neutral">chapter · {result.beats} beats</span> : null}
+                  {result.polished && <span className="badge-base badge-success">polished</span>}
                   {result.thin && <span className="badge-base badge-warning">sparse memory</span>}
                 </div>
 
