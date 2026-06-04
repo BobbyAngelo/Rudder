@@ -19,6 +19,7 @@ import { readMeta } from "./ingest/meta";
 import { readTwitter } from "./ingest/twitter";
 import { readGoogleTakeout } from "./ingest/google";
 import { readPhotos } from "./ingest/photos";
+import { readChatGPTExport } from "./ingest/chatgpt";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -217,7 +218,20 @@ const photos: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter, google, photos };
+// ChatGPT: OpenAI data export conversations.json, parsed fully locally.
+const chatgpt: Connector = {
+  type: "chatgpt",
+  label: "ChatGPT export",
+  config: [
+    { key: "path", label: "conversations.json or folder", type: "path", placeholder: "/Users/you/Downloads/conversations.json" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readChatGPTExport(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter, google, photos, chatgpt };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;
