@@ -13,6 +13,24 @@ const DATA_DIR = join(process.cwd(), "..", "data");
 
 export type PointOfView = "memoir" | "biography" | "for-kids";
 export type StoryLength = "vignette" | "chapter";
+export type Tone = "warm" | "wry" | "cinematic" | "spare" | "literary";
+
+/** Register guidance — so the prose is never one-note (the "morbid memoir" trap). */
+export function toneInstruction(tone: Tone): string {
+  switch (tone) {
+    case "wry":
+      return "Tone: wry — light, observational, a little dry humor. Good for the ordinary and the absurd.";
+    case "cinematic":
+      return "Tone: cinematic — vivid and sensory, present and immediate, strong forward pull.";
+    case "spare":
+      return "Tone: spare — plain, restrained, few words. This is how you carry weight (grief, gravity) WITHOUT being solemn or morbid: understatement, not sentiment.";
+    case "literary":
+      return "Tone: literary — lyrical and image-forward, for set-piece moments. Still earn it with concrete detail, never purple.";
+    case "warm":
+    default:
+      return "Tone: warm — intimate, human, generous. The everyday register.";
+  }
+}
 
 export interface VoiceProfile {
   tone?: string;

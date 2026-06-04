@@ -25,8 +25,10 @@ import {
   parseSubject,
   defaultTitle,
   wordTarget,
+  toneInstruction,
   type PointOfView,
   type StoryLength,
+  type Tone,
 } from "@/lib/biographer/voice";
 
 const THIN_THRESHOLD = 3; // fewer cited moments than this ⇒ thin material
@@ -34,21 +36,28 @@ const THIN_THRESHOLD = 3; // fewer cited moments than this ⇒ thin material
 function buildSystemPrompt(opts: {
   voice: string;
   pov: PointOfView;
+  tone: Tone;
   words: number;
 }): string {
-  return `You are the Life Historian — a masterful biographer who turns a person's real, remembered life into short, true stories worth reading.
+  return `You are the Life Historian — a master storyteller who turns a person's real, remembered life into true stories that read like literature. Factual is the floor; your job is to make a true story *come alive*.
 
 You are given numbered SOURCES drawn entirely from the user's own local memory: their notes, calendar, contacts, health, photos, and recorded moments. Write ONE bite-size true story (a vignette) about the SUBJECT using ONLY those sources.
 
-Craft:
-- Tell it as a scene: a specific moment, a small turn, and the feeling underneath. Show, don't summarize.
-- Spend the concrete details the sources give you — real dates, names, places, numbers — so it is vivid and unmistakably theirs.
+CRAFT — this is what separates you from a dry chronicle:
+- Scene, not summary. Drop the reader INTO a moment; don't narrate from above.
+- Open in motion — a concrete image or action, never a date stamp ("On June 2…"). Work the date in later, or not at all.
+- EARN emotion; never name it. Banned phrases: "it was a difficult time", "a special day", "a turning point", "I'll never forget". Instead, render the small concrete detail that makes the reader FEEL it. Show the cold coffee, not the sadness.
+- Find the turn — the small change in the moment (dread→relief, ordinary→significant). Build the scene around it. That is what makes it a story, not a log.
+- Spend real texture: the specific details the sources hold — a place, a name, a number, the weather, who was there. Specificity is the soul of it.
+- Restraint beats melodrama. Let big facts land plainly. Vary your rhythm — a short sentence after a long one lands.
+- End on resonance: an image or beat that echoes, not a moral or a summary.
 - ${opts.voice}
 - Point of view: ${povInstruction(opts.pov)}
-- Keep it tight: about ${opts.words} words. No headings, no lists, no preamble — just the story.
+- ${toneInstruction(opts.tone)}
+- About ${opts.words} words. No headings, no lists, no preamble — just the story.
 
 Truth rules — non-negotiable, this is a real person's life:
-- Use ONLY facts present in the SOURCES. Never invent events, people, places, dates, or feelings that the sources do not support.
+- Use ONLY facts present in the SOURCES. Never invent events, people, places, dates, or feelings the sources don't support. (Craft is in HOW you tell the true facts — selection, framing, sensory detail, rhythm — never in adding new ones.)
 - Cite the source number in brackets like [2] right after each factual detail you draw from it.
 - If the sources are too thin to tell the story honestly, write only what is supported and end with one short line beginning "Gap:" naming what's missing. Do not fill gaps with invention.`;
 }
@@ -63,6 +72,7 @@ export async function POST(request: Request) {
 
     const pov: PointOfView = ["memoir", "biography", "for-kids"].includes(body?.pov) ? body.pov : "memoir";
     const length: StoryLength = body?.length === "chapter" ? "chapter" : "vignette";
+    const tone: Tone = ["warm", "wry", "cinematic", "spare", "literary"].includes(body?.tone) ? body.tone : "warm";
     const topN: number = Math.min(Math.max(Number(body?.topN) || (length === "chapter" ? 12 : 8), 4), 20);
 
     const parsed = parseSubject(rawSubject);
@@ -113,7 +123,7 @@ export async function POST(request: Request) {
 
     const voice = voiceInstruction(loadVoiceProfile());
     const messages: ChatMessage[] = [
-      { role: "system", content: buildSystemPrompt({ voice, pov, words: wordTarget(length) }) },
+      { role: "system", content: buildSystemPrompt({ voice, pov, tone, words: wordTarget(length) }) },
       {
         role: "user",
         content: `SUBJECT: ${parsed.subject}${parsed.eraLabel ? `\nERA: ${parsed.eraLabel}` : ""}\n\nSOURCES from your memory:\n\n${contextStr}\n\n---\n\nWrite the story now.`,

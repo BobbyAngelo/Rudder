@@ -35,10 +35,20 @@ const POVS: { id: PointOfView; label: string }[] = [
   { id: "for-kids", label: "For my kids" },
 ];
 
+type Tone = "warm" | "wry" | "cinematic" | "spare" | "literary";
+const TONES: { id: Tone; label: string }[] = [
+  { id: "warm", label: "Warm" },
+  { id: "wry", label: "Wry" },
+  { id: "cinematic", label: "Cinematic" },
+  { id: "spare", label: "Spare" },
+  { id: "literary", label: "Literary" },
+];
+
 export default function LifeStoryPage() {
   const [subject, setSubject] = useState("");
   const [pov, setPov] = useState<PointOfView>("memoir");
   const [length, setLength] = useState<StoryLength>("vignette");
+  const [tone, setTone] = useState<Tone>("warm");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<StoryResult | null>(null);
   const [activeSrc, setActiveSrc] = useState<number | null>(null);
@@ -53,7 +63,7 @@ export default function LifeStoryPage() {
       const res = await fetch("/api/biographer/story", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ subject: s, pov, length }),
+        body: JSON.stringify({ subject: s, pov, length, tone }),
       });
       const data = await res.json();
       setResult(data);
@@ -112,6 +122,7 @@ export default function LifeStoryPage() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center", marginTop: "1rem", justifyContent: "space-between" }}>
             <div style={{ display: "flex", gap: "1.25rem", alignItems: "center" }}>
               <Segment label="Voice" options={POVS.map((p) => ({ id: p.id, label: p.label }))} value={pov} onChange={(v) => setPov(v as PointOfView)} />
+              <Segment label="Tone" options={TONES.map((t) => ({ id: t.id, label: t.label }))} value={tone} onChange={(v) => setTone(v as Tone)} />
               <Segment label="Length" options={[{ id: "vignette", label: "Vignette" }, { id: "chapter", label: "Chapter" }]} value={length} onChange={(v) => setLength(v as StoryLength)} />
             </div>
             <button className="btn-primary" onClick={() => weave()} disabled={loading || subject.trim().length < 2} style={{ opacity: loading || subject.trim().length < 2 ? 0.6 : 1 }}>
