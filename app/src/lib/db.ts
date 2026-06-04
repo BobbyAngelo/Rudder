@@ -687,6 +687,30 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    name: "027_proposals",
+    sql: `
+      -- The act loop. Everything Rudder wants to DO becomes a proposal a human
+      -- reviews. Nothing executes without status='confirmed'. A generator writes
+      -- proposals; an executor runs the effect only after confirmation.
+      CREATE TABLE IF NOT EXISTS proposals (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind         TEXT NOT NULL,                 -- surface, draft, schedule, …
+        title        TEXT NOT NULL,                 -- human one-line summary
+        body         TEXT NOT NULL DEFAULT '',      -- the content (nudge text, draft, event)
+        rationale    TEXT NOT NULL DEFAULT '',      -- WHY Rudder proposed this (grounded)
+        sources_json TEXT NOT NULL DEFAULT '[]',    -- memory citations [{id,source,title,date,snippet}]
+        effect_json  TEXT NOT NULL DEFAULT '{}',    -- side-effect descriptor; {} = no external effect
+        status       TEXT NOT NULL DEFAULT 'proposed', -- proposed, confirmed, executed, dismissed, snoozed
+        dedupe_key   TEXT,                          -- so the same nudge isn't re-proposed
+        act_on       TEXT,                          -- ISO datetime to surface/snooze-until
+        created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+        executed_at  TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_proposals_dedupe ON proposals(dedupe_key) WHERE dedupe_key IS NOT NULL;
+    `,
+  },
 ];
 
 

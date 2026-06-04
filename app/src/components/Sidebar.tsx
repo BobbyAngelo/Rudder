@@ -32,6 +32,7 @@ import {
   Brain,
   Mic,
   Feather,
+  Inbox,
 } from "lucide-react";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { MODULE_REGISTRY, getModulesByGroup, type RudderModule } from "@/lib/modules";
@@ -160,6 +161,12 @@ export function Sidebar() {
           label="Capture Session"
           icon={<Mic size={15} />}
           active={pathname.startsWith("/capture")}
+        />
+        <SidebarLink
+          href="/act"
+          label="Rudder's Desk"
+          icon={<Inbox size={15} />}
+          active={pathname.startsWith("/act")}
         />
         <SidebarLink
           href="/biographer/story"
