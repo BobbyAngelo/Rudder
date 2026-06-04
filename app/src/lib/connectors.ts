@@ -17,6 +17,7 @@ import { readLinkedIn } from "./ingest/linkedin";
 import { readEmailMbox } from "./ingest/email";
 import { readMeta } from "./ingest/meta";
 import { readTwitter } from "./ingest/twitter";
+import { readGoogleTakeout } from "./ingest/google";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -187,7 +188,22 @@ const twitter: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter };
+// Google Takeout: your own export (takeout.google.com). Search/YouTube/Chrome
+// activity aggregated into one memory doc per day. (Contacts/calendar: use the
+// .vcf/.ics connectors on the exported files.)
+const google: Connector = {
+  type: "google",
+  label: "Google Takeout",
+  config: [
+    { key: "path", label: "Takeout folder", type: "path", placeholder: "/Users/you/Downloads/Takeout" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readGoogleTakeout(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter, google };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;
