@@ -16,6 +16,7 @@ import { readHealthExport } from "./ingest/health";
 import { readLinkedIn } from "./ingest/linkedin";
 import { readEmailMbox } from "./ingest/email";
 import { readMeta } from "./ingest/meta";
+import { readTwitter } from "./ingest/twitter";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -172,7 +173,21 @@ const meta: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta };
+// X/Twitter: your own archive (Settings → Download an archive of your data).
+// Files are JS (window.YTD…) — strip the prefix, parse tweets + DMs. Local only.
+const twitter: Connector = {
+  type: "twitter",
+  label: "X / Twitter (archive)",
+  config: [
+    { key: "path", label: "Twitter archive folder", type: "path", placeholder: "/Users/you/Downloads/twitter-archive" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readTwitter(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;
