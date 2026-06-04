@@ -10,16 +10,19 @@ import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   User, Users, MapPin, Mail, Phone, Globe, Calendar, Clock, Plus, X, Save, Loader2,
   Check, Target, BookOpen, Heart, Link2, Brain, Send, GripVertical, Sparkles, TrendingUp,
+  Download, Trash2, Camera,
 } from "lucide-react";
 
 interface Profile {
   display_name?: string; full_name?: string; headline?: string; bio?: string;
   operating_manual?: string; goals?: string; email?: string; phone?: string;
   location?: string; timezone?: string; date_of_birth?: string; website?: string;
+  avatar_url?: string;
 }
 interface ValueItem { label: string; description: string; }
 interface Milestone { title: string; description: string; date: string; category: string; }
 interface LinkItem { platform: string; url: string; label: string; }
+interface RelItem { name: string; relation: string; note: string; }
 interface AskSource { id: string; source: string; title: string; date?: string; snippet: string; }
 interface Insights {
   memoryTotal: number;
@@ -36,6 +39,7 @@ export default function IdentityPage() {
   const [values, setValues] = useState<ValueItem[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
+  const [relationships, setRelationships] = useState<RelItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -58,6 +62,7 @@ export default function IdentityPage() {
       setValues((d.values || []).map((v: any) => ({ label: v.label || "", description: v.description || "" })));
       setMilestones((d.milestones || []).map((m: any) => ({ title: m.title || "", description: m.description || "", date: m.date || "", category: m.category || "life" })));
       setLinks((d.links || []).map((l: any) => ({ platform: l.platform || "", url: l.url || "", label: l.label || "" })));
+      setRelationships((d.relationships || []).map((r: any) => ({ name: r.name || "", relation: r.relation || "", note: r.note || "" })));
     } catch { /* empty state */ }
     fetch("/api/identity/insights").then((r) => r.json()).then((d) => { if (!d.error) setInsights(d); }).catch(() => {});
     setLoading(false);
@@ -87,6 +92,8 @@ export default function IdentityPage() {
           replaceMilestones: true,
           links: links.filter((l) => l.platform.trim() && l.url.trim()),
           replaceLinks: true,
+          relationships: relationships.filter((r) => r.name.trim()).map((r, i) => ({ ...r, priority: i })),
+          replaceRelationships: true,
         }),
       });
       const d = await res.json();
@@ -119,11 +126,58 @@ export default function IdentityPage() {
     document.getElementById("ask-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  function handleAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_500_000) { setSaveMsg("⚠️ Image too large (max ~1.5MB)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => setP("avatar_url", String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  function download(filename: string, content: string, type: string) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportJSON() {
+    download("identity.json", JSON.stringify({ profile, values, milestones, links, relationships }, null, 2), "application/json");
+  }
+
+  function exportMarkdown() {
+    const nm = profile.display_name?.trim() || "Me";
+    const md: string[] = [`# ${nm}`];
+    if (profile.headline) md.push(`_${profile.headline}_`);
+    if (profile.bio) md.push(`\n${profile.bio}`);
+    if (profile.operating_manual) md.push(`\n## Operating manual\n${profile.operating_manual}`);
+    if (profile.goals) md.push(`\n## Goals\n${profile.goals}`);
+    if (values.some((v) => v.label.trim())) md.push("\n## Values\n" + values.filter((v) => v.label.trim()).map((v) => `- **${v.label}**${v.description ? ` — ${v.description}` : ""}`).join("\n"));
+    if (relationships.some((r) => r.name.trim())) md.push("\n## People\n" + relationships.filter((r) => r.name.trim()).map((r) => `- **${r.name}**${r.relation ? ` — ${r.relation}` : ""}${r.note ? `: ${r.note}` : ""}`).join("\n"));
+    if (milestones.some((m) => m.title.trim())) md.push("\n## Milestones\n" + milestones.filter((m) => m.title.trim()).map((m) => `- ${m.date ? `${m.date} — ` : ""}${m.title}${m.description ? `: ${m.description}` : ""}`).join("\n"));
+    if (links.some((l) => l.url.trim())) md.push("\n## Links\n" + links.filter((l) => l.url.trim()).map((l) => `- ${l.platform}: ${l.url}`).join("\n"));
+    download("identity.md", md.join("\n") + "\n", "text/markdown");
+  }
+
+  async function clearIdentity() {
+    if (!confirm("Clear your entire identity and remove it from memory? This can't be undone.")) return;
+    setSaving(true); setSaveMsg(null);
+    try {
+      await fetch("/api/identity", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ reset: true }) });
+      await load();
+      setSaveMsg("Identity cleared.");
+    } catch (e) { setSaveMsg(`⚠️ ${(e as Error).message}`); }
+    setSaving(false);
+  }
+
   // Completeness signal
   const signals = [
     !!profile.display_name?.trim(), !!profile.headline?.trim(), !!profile.bio?.trim(),
     !!profile.operating_manual?.trim(), !!profile.goals?.trim(), !!profile.location?.trim(),
     values.some((v) => v.label.trim()), milestones.some((m) => m.title.trim()), links.some((l) => l.url.trim()),
+    relationships.some((r) => r.name.trim()),
   ];
   const filled = signals.filter(Boolean).length;
   const pct = Math.round((filled / signals.length) * 100);
@@ -145,9 +199,17 @@ export default function IdentityPage() {
 
         {/* ── Header ── */}
         <div className="card" style={{ padding: "1.5rem", display: "flex", gap: "1.1rem", alignItems: "center", marginBottom: "1rem" }}>
-          <div style={{ width: 60, height: 60, borderRadius: "50%", flexShrink: 0, display: "grid", placeItems: "center", fontSize: "1.5rem", fontWeight: 800, color: "#04130c", background: "var(--color-accent-gradient)" }}>
-            {name.charAt(0).toUpperCase()}
-          </div>
+          <label style={{ position: "relative", cursor: "pointer", flexShrink: 0 }} title="Upload a photo">
+            <input type="file" accept="image/*" onChange={handleAvatar} style={{ display: "none" }} />
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt="" style={{ width: 60, height: 60, borderRadius: "50%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ width: 60, height: 60, borderRadius: "50%", display: "grid", placeItems: "center", fontSize: "1.5rem", fontWeight: 800, color: "#04130c", background: "var(--color-accent-gradient)" }}>
+                {name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span style={{ position: "absolute", bottom: -2, right: -2, width: 20, height: 20, borderRadius: "50%", background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)", display: "grid", placeItems: "center", color: "var(--color-text-muted)" }}><Camera size={11} /></span>
+          </label>
           <div style={{ minWidth: 0, flex: 1 }}>
             <input className="bare-input" style={{ fontSize: "1.4rem", fontWeight: 700, letterSpacing: "-0.02em" }} value={profile.display_name || ""} onChange={(e) => setP("display_name", e.target.value)} placeholder="Your name" />
             <input className="bare-input" style={{ fontSize: "0.9rem", color: "var(--color-text-muted)", marginTop: 2 }} value={profile.headline || ""} onChange={(e) => setP("headline", e.target.value)} placeholder="A one-line headline — e.g. Designer, runner, dad of two" />
@@ -176,6 +238,11 @@ export default function IdentityPage() {
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <input className="modal-input" value={askQ} onChange={(e) => setAskQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} placeholder="What do I value? · What am I working toward?" style={{ flex: 1 }} />
             <button className="btn-primary" onClick={() => ask()} disabled={asking || askQ.trim().length < 3}>{asking ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.6rem" }}>
+            {["What do I value?", "Who's important to me?", "What am I working toward?"].map((q) => (
+              <button key={q} className="btn-ghost" style={{ border: "1px solid var(--color-border)", fontSize: "0.72rem", padding: "0.25rem 0.55rem", color: "var(--color-text-muted)" }} onClick={() => { setAskQ(q); ask(q); }}>{q}</button>
+            ))}
           </div>
           {askAnswer && (
             <div style={{ marginTop: "0.9rem", padding: "0.9rem", borderRadius: "var(--radius-sm)", background: "var(--color-surface-elevated)", border: "1px solid var(--color-border)" }}>
@@ -244,6 +311,23 @@ export default function IdentityPage() {
           />
         </Section>
 
+        {/* ── Relationships ── */}
+        <Section icon={<Users size={15} />} title="The people in your life" subtitle="Who matters, and who they are to you — so 'who is Sam to me' resolves.">
+          <ListEditor
+            items={relationships}
+            onChange={(v) => { setRelationships(v); mark(); }}
+            blank={{ name: "", relation: "", note: "" }}
+            addLabel="Add a person"
+            render={(item, set) => (
+              <div style={{ flex: 1, display: "flex", gap: "0.4rem" }}>
+                <input className="modal-input" style={{ flex: "0 0 34%" }} value={item.name} onChange={(e) => set({ ...item, name: e.target.value })} placeholder="Sam Rivera" />
+                <input className="modal-input" style={{ flex: "0 0 26%" }} value={item.relation} onChange={(e) => set({ ...item, relation: e.target.value })} placeholder="sister" />
+                <input className="modal-input" style={{ flex: 1 }} value={item.note} onChange={(e) => set({ ...item, note: e.target.value })} placeholder="note (optional)" />
+              </div>
+            )}
+          />
+        </Section>
+
         {/* ── Links ── */}
         <Section icon={<Link2 size={15} />} title="Links" subtitle="Your presence online.">
           <ListEditor
@@ -269,6 +353,15 @@ export default function IdentityPage() {
             <Detail icon={<Phone size={14} />} value={profile.phone || ""} onChange={(v) => setP("phone", v)} placeholder="Phone" />
             <Detail icon={<Globe size={14} />} value={profile.website || ""} onChange={(v) => setP("website", v)} placeholder="Website" />
             <Detail icon={<Calendar size={14} />} value={profile.date_of_birth || ""} onChange={(v) => setP("date_of_birth", v)} placeholder="Birthday" type="date" />
+          </div>
+        </Section>
+
+        {/* ── Your data (sovereignty) ── */}
+        <Section icon={<Download size={15} />} title="Your identity is yours" subtitle="It lives only on this machine. Take it with you, or wipe it, anytime.">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", alignItems: "center" }}>
+            <button className="btn-ghost" style={{ border: "1px solid var(--color-border)" }} onClick={exportJSON}><Download size={14} /> Export JSON</button>
+            <button className="btn-ghost" style={{ border: "1px solid var(--color-border)" }} onClick={exportMarkdown}><Download size={14} /> Export Markdown</button>
+            <button className="btn-ghost" style={{ border: "1px solid var(--color-danger)", color: "var(--color-danger)", marginLeft: "auto" }} onClick={clearIdentity}><Trash2 size={14} /> Clear identity</button>
           </div>
         </Section>
       </div>

@@ -20,12 +20,15 @@ export async function GET() {
       .prepare("SELECT * FROM identity_milestones ORDER BY date DESC")
       .all();
     const links = db.prepare("SELECT * FROM identity_links ORDER BY id ASC").all();
+    let relationships: any[] = [];
+    try { relationships = db.prepare("SELECT * FROM identity_relationships ORDER BY priority ASC").all(); } catch { /* table may not exist */ }
 
     return NextResponse.json({
       profile,
       values,
       milestones,
       links,
+      relationships,
     });
   } catch (error: any) {
     console.error("[api/identity] GET error:", error);
@@ -37,6 +40,20 @@ export async function PUT(request: Request) {
   try {
     const db = getDB();
     const body = await request.json();
+
+    // Reset: wipe the whole identity (profile fields + lists) and clear its memory.
+    if (body.reset) {
+      db.prepare(`UPDATE identity_profile SET display_name='', full_name='', headline='', bio='',
+        operating_manual='', goals='', email='', phone='', location='', timezone='',
+        date_of_birth=NULL, avatar_url=NULL, website='', updated_at=datetime('now') WHERE id = 1`).run();
+      db.prepare("DELETE FROM identity_values").run();
+      db.prepare("DELETE FROM identity_milestones").run();
+      db.prepare("DELETE FROM identity_links").run();
+      try { db.prepare("DELETE FROM identity_relationships").run(); } catch { /* */ }
+      let cleared = 0;
+      try { const r = await indexIdentity(db, (t) => ollamaEmbed(t)); cleared = r.indexed; } catch { /* */ }
+      return NextResponse.json({ success: true, reset: true, memoryIndexed: cleared });
+    }
 
     // Update profile fields
     if (body.profile) {
@@ -135,6 +152,17 @@ export async function PUT(request: Request) {
           label: l.label || "",
         });
       }
+    }
+
+    // Upsert relationships
+    if (body.relationships) {
+      try {
+        if (body.replaceRelationships) db.prepare("DELETE FROM identity_relationships").run();
+        const insert = db.prepare(`INSERT INTO identity_relationships (name, relation, note, priority) VALUES (@name, @relation, @note, @priority)`);
+        for (const r of body.relationships) {
+          insert.run({ name: r.name, relation: r.relation || "", note: r.note || "", priority: r.priority || 0 });
+        }
+      } catch (e) { console.warn("[api/identity] relationships skipped:", (e as Error).message); }
     }
 
     // Tie identity into the brain: re-index it as a memory source so Ask and the

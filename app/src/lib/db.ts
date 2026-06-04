@@ -672,6 +672,21 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE identity_profile ADD COLUMN goals TEXT NOT NULL DEFAULT '';
     `,
   },
+  {
+    name: "026_identity_relationships",
+    sql: `
+      -- The key people in your life, and who they are to you. Indexed into
+      -- memory so "who is Sam to me" resolves.
+      CREATE TABLE IF NOT EXISTS identity_relationships (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        relation TEXT NOT NULL DEFAULT '',       -- sister, partner, mentor, …
+        note TEXT NOT NULL DEFAULT '',
+        priority INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 

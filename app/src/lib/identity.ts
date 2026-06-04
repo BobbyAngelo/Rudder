@@ -21,6 +21,7 @@ interface ProfileRow {
 interface ValueRow { id: number; label: string; description?: string; priority?: number; }
 interface MilestoneRow { id: number; title: string; description?: string; date?: string; category?: string; }
 interface LinkRow { id: number; platform: string; url: string; label?: string; }
+interface RelationshipRow { id: number; name: string; relation?: string; note?: string; priority?: number; }
 
 /** The user's own name, for tagging identity docs as "about them". */
 export function identityName(db: Database.Database): string {
@@ -34,6 +35,8 @@ export function buildIdentityDocs(db: Database.Database): RawDoc[] {
   const values = db.prepare("SELECT * FROM identity_values ORDER BY priority ASC").all() as ValueRow[];
   const milestones = db.prepare("SELECT * FROM identity_milestones ORDER BY date DESC").all() as MilestoneRow[];
   const links = db.prepare("SELECT * FROM identity_links ORDER BY id ASC").all() as LinkRow[];
+  let relationships: RelationshipRow[] = [];
+  try { relationships = db.prepare("SELECT * FROM identity_relationships ORDER BY priority ASC").all() as RelationshipRow[]; } catch { /* table may not exist yet */ }
 
   const docs: RawDoc[] = [];
   const name = (profile?.display_name || profile?.full_name || "").trim() || "the user";
@@ -81,6 +84,20 @@ export function buildIdentityDocs(db: Database.Database): RawDoc[] {
       body: `${m.title}${m.description ? ` — ${m.description}` : ""}${m.category ? ` (${m.category})` : ""}`,
       date: m.date || undefined,
       people: [name],
+    });
+  }
+
+  // 4) Relationships — the key people in their life ("X is my Y").
+  for (const r of relationships) {
+    if (!r.name?.trim()) continue;
+    const rel = r.relation?.trim();
+    const body = `${r.name} is ${name}'s ${rel || "person"}.${r.note?.trim() ? ` ${r.note.trim()}` : ""}`;
+    docs.push({
+      source: "identity",
+      sourceId: `identity:relationship:${r.id}`,
+      title: rel ? `${r.name} — ${rel}` : r.name,
+      body,
+      people: [r.name, name],
     });
   }
 
