@@ -37,6 +37,19 @@ Truth rules — non-negotiable:
 - Cite the source number in brackets [n] after each fact you use.`;
 }
 
+/** Pull an era's moments by date range (chronological), shaped like recall's output. */
+function fetchEra(db: any, from: string, to: string, limit: number) {
+  const rows = db.prepare(
+    `SELECT chunk_id, source, title, content, date FROM chunk_index
+     WHERE date BETWEEN ? AND ? AND source != 'identity'
+     ORDER BY date ASC LIMIT ?`
+  ).all(from, to, limit) as any[];
+  return {
+    chunks: rows.map((r) => ({ id: r.chunk_id, source: r.source, title: r.title, content: r.content, date: r.date })),
+    sources: rows.map((r) => ({ id: r.chunk_id, source: r.source, title: r.title, date: r.date, snippet: (r.content || "").slice(0, 160) })),
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -49,17 +62,23 @@ export async function POST(request: Request) {
     const tone: Tone = ["warm", "wry", "cinematic", "spare", "literary"].includes(body?.tone) ? body.tone : "warm";
     const beatCount = Math.min(Math.max(Number(body?.beats) || 4, 2), 8);
     const polish: boolean = body?.polish !== false;
+    const isDate = (s: any) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+    const from: string | null = isDate(body?.from) ? body.from : null;
+    const to: string | null = isDate(body?.to) ? body.to : null;
 
     const parsed = parseSubject(rawSubject);
     const db = getDB();
     const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as { default_execution_mode?: string } | undefined;
     const mode = prefs?.default_execution_mode || "local_ollama";
 
-    // Recall a wider net for a whole era.
+    // For an era (from/to), pull that range's real moments by DATE (a chapter
+    // should cover its whole era). Otherwise, semantic recall for a free subject.
     const topN = Math.min(beatCount * 6, 30);
-    let result;
+    let result: { chunks: any[]; sources: any[] };
     try {
-      result = await recall(db, parsed.recallQuery, (t) => ollamaEmbed(t), { topN });
+      result = (from && to)
+        ? fetchEra(db, from, to, topN)
+        : await recall(db, parsed.recallQuery, (t) => ollamaEmbed(t), { topN });
     } catch (e: any) {
       return NextResponse.json({ subject: parsed.subject, story: `⚠️ Couldn't search your memory: ${e.message}. Is Ollama running?`, sources: [], online: false });
     }

@@ -7,8 +7,8 @@
    Self-contained surface (no entanglement with the legacy biographer page).
    ═══════════════════════════════════════════════════════ */
 
-import { useState, useRef, type ReactNode } from "react";
-import { Feather, Sparkles, Loader2, BookOpen, Quote, AlertCircle, ArrowRight } from "lucide-react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
+import { Feather, Sparkles, Loader2, BookOpen, Quote, AlertCircle, ArrowRight, Calendar } from "lucide-react";
 
 type PointOfView = "memoir" | "biography" | "for-kids";
 type StoryLength = "vignette" | "chapter";
@@ -54,6 +54,13 @@ export default function LifeStoryPage() {
   const [result, setResult] = useState<StoryResult | null>(null);
   const [activeSrc, setActiveSrc] = useState<number | null>(null);
   const sourcesRef = useRef<HTMLDivElement>(null);
+  const [otd, setOtd] = useState<{ story: string; count: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/biographer/on-this-day").then((r) => r.json()).then((d) => {
+      if (d && d.story && !d.empty && !d.story.startsWith("⚠️")) setOtd({ story: d.story, count: d.count });
+    }).catch(() => {});
+  }, []);
 
   async function weave(subj?: string) {
     const s = (subj ?? subject).trim();
@@ -96,6 +103,14 @@ export default function LifeStoryPage() {
             <p className="page-subtitle">Tell me the story of your life — true, cited, and in your own voice.</p>
           </div>
         </header>
+
+        {/* ── On this day (the living loop) ── */}
+        {otd && (
+          <div className="card glow-card" style={{ padding: "1.1rem 1.25rem", marginBottom: "1rem", borderColor: "rgba(52,211,153,0.25)" }}>
+            <div className="section-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: "0.5rem" }}><Calendar size={12} /> On this day</div>
+            <p style={{ fontFamily: "Georgia, serif", fontSize: "0.98rem", lineHeight: 1.7, color: "var(--color-text-primary)", whiteSpace: "pre-wrap" }}>{otd.story.replace(/\s*\[\d+\]/g, "")}</p>
+          </div>
+        )}
 
         {/* ── Prompt ── */}
         <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>

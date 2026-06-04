@@ -167,6 +167,12 @@ export function Sidebar() {
           icon={<Feather size={15} />}
           active={pathname.startsWith("/biographer/story")}
         />
+        <SidebarLink
+          href="/biographer/book"
+          label="Your Life Story"
+          icon={<BookOpen size={15} />}
+          active={pathname.startsWith("/biographer/book")}
+        />
       </div>
 
       {/* ── Navigation Groups (data-driven) ── */}
