@@ -20,6 +20,7 @@ import {
 } from "@/lib/biographer/voice";
 import { buildCriticSystemPrompt } from "@/lib/biographer/critic";
 import { segmentBeats } from "@/lib/biographer/chapter";
+import { buildLifeFacts, factsForEra } from "@/lib/biographer/continuity";
 
 function beatSystemPrompt(opts: { voice: string; pov: PointOfView; tone: Tone }): string {
   return `You are the Life Historian, writing ONE scene of a chapter of a person's TRUE life — in order, continuing from the scene before it. Use ONLY the numbered SOURCES (the chapter's full evidence).
@@ -34,7 +35,8 @@ Craft (this is what makes it read like literature, not a log):
 
 Truth rules — non-negotiable:
 - Use ONLY facts in the SOURCES. Never invent events, people, places, dates, or feelings.
-- Cite the source number in brackets [n] after each fact you use.`;
+- Cite the source number in brackets [n] after each fact you use.
+- You may be given KNOWN FACTS (role, location, key people) for continuity. Use them to stay consistent across the book, but narrate only what the SOURCES support, and never cite KNOWN FACTS with [n].`;
 }
 
 /** Pull an era's moments by date range (chronological), shaped like recall's output. */
@@ -100,6 +102,12 @@ export async function POST(request: Request) {
     const voice = voiceInstruction(loadVoiceProfile());
     const sys = beatSystemPrompt({ voice, pov, tone });
 
+    // Continuity: the life-facts true in this era, so chapters don't contradict.
+    const known = factsForEra(buildLifeFacts(db), from || undefined, to || undefined);
+    const knownBlock = known.length
+      ? `\n\nKNOWN FACTS (true in this period — stay consistent, don't contradict, don't invent beyond them):\n${known.join("\n")}`
+      : "";
+
     // Write each beat in order, continuing from the previous.
     const scenes: string[] = [];
     try {
@@ -108,7 +116,7 @@ export async function POST(request: Request) {
         const prev = scenes.length ? scenes[scenes.length - 1] : "(this is the opening scene — set the chapter in motion)";
         const messages: ChatMessage[] = [
           { role: "system", content: sys },
-          { role: "user", content: `SOURCES (the whole chapter's evidence):\n\n${contextStr}\n\n---\n\nWrite the next scene, focused on these moments: ${focus}.\n\nPREVIOUS SCENE:\n${prev}\n\nWrite this scene now.` },
+          { role: "user", content: `SOURCES (the whole chapter's evidence):\n\n${contextStr}${knownBlock}\n\n---\n\nWrite the next scene, focused on these moments: ${focus}.\n\nPREVIOUS SCENE:\n${prev}\n\nWrite this scene now.` },
         ];
         const scene = (await executeChat(messages, mode)).trim();
         if (scene) scenes.push(scene);
