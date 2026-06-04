@@ -17,6 +17,7 @@ import type Database from "better-sqlite3";
 import type { DraftProposal, ProposalSource } from "./types";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const monthsBetween = (aIso: string, b: Date) =>
   (b.getTime() - new Date(aIso + "T00:00:00Z").getTime()) / (1000 * 60 * 60 * 24 * 30.4);
 
@@ -69,16 +70,24 @@ export function goneQuiet(db: Database.Database, now: Date, quietMonths = 6): Dr
   const out: DraftProposal[] = [];
   for (const p of people) {
     if (!p.name || p.name.trim().length < 2) continue;
-    const like = `%${p.name}%`;
-    let last: any;
+    // People go by first names in notes ("Diego"), but relationships store the
+    // full name ("Diego Alvarez"). Search by the first name, then confirm a
+    // whole-word match (full OR first) so "Sam" doesn't match "same".
+    const full = p.name.trim();
+    const first = full.split(/\s+/)[0];
+    const search = first.length >= 3 ? first : full;
+    if (search.length < 3) continue; // too short to match safely
+    const word = new RegExp(`\\b(${escapeRe(full)}|${escapeRe(first)})\\b`, "i");
+    let rows: any[] = [];
     try {
-      last = db.prepare(
+      rows = db.prepare(
         `SELECT chunk_id, source, title, content, date FROM chunk_index
          WHERE source != 'identity' AND date IS NOT NULL
            AND (content LIKE ? OR title LIKE ?)
-         ORDER BY date DESC LIMIT 1`
-      ).get(like, like) as any;
+         ORDER BY date DESC LIMIT 8`
+      ).all(`%${search}%`, `%${search}%`) as any[];
     } catch { continue; }
+    const last = rows.find((r) => word.test(`${r.title || ""} ${r.content || ""}`));
     if (!last || !last.date) continue; // never mentioned → skip (avoid noise in phase 1)
     const months = monthsBetween(last.date, now);
     if (months < quietMonths) continue;
