@@ -14,6 +14,7 @@ import { readCalendar } from "./ingest/ics";
 import { readContacts } from "./ingest/vcard";
 import { readHealthExport } from "./ingest/health";
 import { readLinkedIn } from "./ingest/linkedin";
+import { readEmailMbox } from "./ingest/email";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -142,7 +143,21 @@ const linkedin: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin };
+// Email: your own .mbox export (Gmail Takeout, Apple Mail, Thunderbird, …).
+// Streamed so huge archives don't blow memory; skips Spam/Trash. Local only.
+const email: Connector = {
+  type: "email",
+  label: "Email (.mbox)",
+  config: [
+    { key: "path", label: ".mbox file", type: "path", placeholder: "/Users/you/Downloads/All mail.mbox" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readEmailMbox(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;

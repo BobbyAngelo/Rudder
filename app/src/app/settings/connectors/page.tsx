@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FolderPlus, RefreshCw, Trash2, Loader2, Plug, CheckCircle2, UploadCloud, FileText, BookText, CalendarDays, Users, HeartPulse } from "lucide-react";
 
 const SUPPORTED = "txt, md, html, csv, tsv, json, rtf · pdf, docx · images (OCR)";
-type Kind = "markdown" | "files" | "calendar" | "contacts" | "health" | "linkedin";
+type Kind = "markdown" | "files" | "calendar" | "contacts" | "health" | "linkedin" | "email";
 
 interface Connector {
   id: number;
@@ -114,6 +114,7 @@ export default function ConnectorsPage() {
               { k: "contacts" as Kind, label: "Contacts (.vcf)", icon: <Users size={13} /> },
               { k: "health" as Kind, label: "Apple Health", icon: <HeartPulse size={13} /> },
               { k: "linkedin" as Kind, label: "LinkedIn", icon: <FileText size={13} /> },
+              { k: "email" as Kind, label: "Email (.mbox)", icon: <FileText size={13} /> },
             ]).map(({ k, label, icon }) => (
               <button
                 key={k}
@@ -141,6 +142,7 @@ export default function ConnectorsPage() {
                 : kind === "contacts" ? "/Users/you/Downloads/contacts.vcf"
                 : kind === "health" ? "/Users/you/apple_health_export/export.xml"
                 : kind === "linkedin" ? "/Users/you/Downloads/Basic_LinkedInDataExport"
+                : kind === "email" ? "/Users/you/Downloads/All mail.mbox"
                 : "/Users/you/Documents/Notes"
               }
               className="flex-1 px-3 py-2 rounded-lg text-[13px] outline-none"
@@ -167,6 +169,8 @@ export default function ConnectorsPage() {
               ? <>Unzip your Health export and point at <code>export.xml</code>. Indexed as weekly per-metric summaries — nothing leaves your machine.</>
               : kind === "linkedin"
               ? <>Export your data (LinkedIn → Settings → Data Privacy → <em>Get a copy of your data</em>), unzip it, and point at the folder. Your Profile, Positions, Education &amp; Skills become memory — parsed locally, no scraping.</>
+              : kind === "email"
+              ? <>Export your mail (Google Takeout for Gmail, or your mail app&apos;s &ldquo;Export to mbox&rdquo;) and point at the <code>.mbox</code> file. Each message becomes memory — streamed locally, Spam/Trash skipped. For huge archives, export one focused label.</>
               : <>Paste the full path to a folder on this computer. Subfolders are included; <code>node_modules</code>, <code>.git</code>, etc. are skipped.</>}
           </p>
           {error && <p className="text-[12px] mt-2" style={{ color: "var(--color-danger)" }}>{error}</p>}
