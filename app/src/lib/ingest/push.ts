@@ -7,6 +7,7 @@
 import type Database from "better-sqlite3";
 import { toChunks, type RawDoc } from "./enrich";
 import { indexChunks, type EmbedFn } from "../memory";
+import { writeRawDocs } from "../vault";
 
 export interface PushItem {
   source?: string;   // "typewriter" | "strava" | "capture" | "laptop" | ...
@@ -47,6 +48,9 @@ export function toRawDoc(item: PushItem): RawDoc {
 
 export async function pushDocs(db: Database.Database, items: PushItem[], embed: EmbedFn) {
   const docs = items.map(toRawDoc).filter((d) => d.body.trim().length > 0);
+  // Vault is the source of truth: write files first, then derive the index.
+  // A vault failure must never lose the ingest, so it's best-effort.
+  try { writeRawDocs(docs); } catch (e: any) { console.warn("[vault] write failed:", e?.message); }
   const chunks = docs.flatMap(toChunks);
   const { indexed, skipped } = await indexChunks(db, chunks, embed);
   return { indexed, skipped, chunks: chunks.length, docs: docs.length };

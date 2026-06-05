@@ -21,6 +21,7 @@ import { readGoogleTakeout } from "./ingest/google";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
+import { writeRawDocs } from "./vault";
 
 function assertFolder(p: string | undefined): void {
   if (!p || !existsSync(p) || !statSync(p).isDirectory()) {
@@ -261,6 +262,8 @@ export async function syncConnector(db: Database.Database, id: number, embed: Em
 
   const config = { path: row.path, ...(row.config ? JSON.parse(row.config) : {}) };
   const docs = await connector.list(config);
+  // Vault first (source of truth), then derive the index. Best-effort.
+  try { writeRawDocs(docs); } catch (e: any) { console.warn("[vault] write failed:", e?.message); }
   const chunks = docs.flatMap(toChunks);
 
   const { indexed, skipped } = await indexChunks(db, chunks, embed, row.id);

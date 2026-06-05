@@ -15,6 +15,8 @@
     "ingest:md": "tsx scripts/ingest-md.ts",
     "memory:reset": "tsx scripts/memory-reset.ts",
     "act:scan": "tsx scripts/daily-scan.ts",
+    "vault:export": "tsx scripts/vault-export.ts",
+    "vault:rebuild": "tsx scripts/vault-rebuild.ts",
     "mcp": "tsx scripts/mcp-server.ts"
   },
   "dependencies": {
