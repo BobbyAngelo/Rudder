@@ -17,6 +17,7 @@
     "act:scan": "tsx scripts/daily-scan.ts",
     "vault:export": "tsx scripts/vault-export.ts",
     "vault:rebuild": "tsx scripts/vault-rebuild.ts",
+    "wiki:compile": "tsx scripts/wiki-compile.ts",
     "mcp": "tsx scripts/mcp-server.ts"
   },
   "dependencies": {
