@@ -117,6 +117,26 @@ export function clearSource(db: Database.Database, source: string): number {
   return rows.length;
 }
 
+/**
+ * Index chunk metadata WITHOUT embeddings — for when no model is reachable.
+ * The chunk is searchable by SQL/lexical features (the act loop, the wiki, the
+ * vault) immediately; semantic recall just won't find it until it's re-embedded.
+ */
+export function indexChunksMetadataOnly(db: Database.Database, chunks: Chunk[]): number {
+  ensureMemory(db);
+  const upMeta = db.prepare(
+    `INSERT OR REPLACE INTO chunk_index(chunk_id, source, title, content, date, source_id, vector, hash, connector_id)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`
+  );
+  let n = 0;
+  for (const c of chunks) {
+    if (!c.id) continue;
+    upMeta.run(c.id, c.source, c.title, c.content, c.date ?? null, c.sourceId ?? null, chunkHash(c), null);
+    n++;
+  }
+  return n;
+}
+
 /** Delete specific chunks by id (chunk_index + their embeddings). Returns count. */
 export function removeChunks(db: Database.Database, ids: string[]): number {
   ensureMemory(db);

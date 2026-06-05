@@ -50,8 +50,19 @@ export default function IdentityPage() {
   const [askAnswer, setAskAnswer] = useState("");
   const [askSources, setAskSources] = useState<AskSource[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
+  const [suggestions, setSuggestions] = useState<{ name: string; mentions: number; snippet: string }[]>([]);
 
   useEffect(() => { load(); }, []);
+
+  function loadSuggestions() {
+    fetch("/api/identity/suggestions").then((r) => r.json()).then((d) => { if (!d.error) setSuggestions(d.suggestions || []); }).catch(() => {});
+  }
+  // Add a noticed person into the relationships editor (saved on the next Save).
+  function addSuggested(name: string) {
+    setRelationships((prev) => prev.some((r) => r.name.trim().toLowerCase() === name.toLowerCase()) ? prev : [...prev, { name, relation: "", note: "" }]);
+    setSuggestions((prev) => prev.filter((s) => s.name !== name));
+    mark();
+  }
 
   async function load() {
     setLoading(true);
@@ -65,6 +76,7 @@ export default function IdentityPage() {
       setRelationships((d.relationships || []).map((r: any) => ({ name: r.name || "", relation: r.relation || "", note: r.note || "" })));
     } catch { /* empty state */ }
     fetch("/api/identity/insights").then((r) => r.json()).then((d) => { if (!d.error) setInsights(d); }).catch(() => {});
+    loadSuggestions();
     setLoading(false);
     setDirty(false);
   }
@@ -313,6 +325,23 @@ export default function IdentityPage() {
 
         {/* ── Relationships ── */}
         <Section icon={<Users size={15} />} title="The people in your life" subtitle="Who matters, and who they are to you — so 'who is Sam to me' resolves.">
+          {suggestions.length > 0 && (
+            <div style={{ marginBottom: "0.9rem", padding: "0.85rem 1rem", borderRadius: "var(--radius-md)", background: "var(--color-accent-dim)", border: "1px solid var(--color-border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.55rem" }}>
+                <Sparkles size={14} style={{ color: "var(--color-accent)" }} />
+                <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--color-text-primary)" }}>People Rudder noticed in your memory</span>
+              </div>
+              <p style={{ fontSize: "0.76rem", color: "var(--color-text-muted)", marginBottom: "0.7rem" }}>You mention these people but haven&apos;t added them yet. Add one and they get a page in your wiki.</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
+                {suggestions.map((s) => (
+                  <button key={s.name} className="btn-ghost" onClick={() => addSuggested(s.name)} title={s.snippet}
+                    style={{ border: "1px solid var(--color-border)", fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                    <Plus size={12} /> {s.name} <span style={{ color: "var(--color-text-dim)", fontSize: "0.7rem" }}>· {s.mentions}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <ListEditor
             items={relationships}
             onChange={(v) => { setRelationships(v); mark(); }}
