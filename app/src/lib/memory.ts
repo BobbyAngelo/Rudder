@@ -117,6 +117,17 @@ export function clearSource(db: Database.Database, source: string): number {
   return rows.length;
 }
 
+/** Delete specific chunks by id (chunk_index + their embeddings). Returns count. */
+export function removeChunks(db: Database.Database, ids: string[]): number {
+  ensureMemory(db);
+  const del = db.prepare("DELETE FROM chunk_index WHERE chunk_id = ?");
+  const tx = db.transaction((list: string[]) => {
+    for (const id of list) { del.run(id); deleteEmbedding(db, id); }
+  });
+  tx(ids);
+  return ids.length;
+}
+
 export interface Source {
   id: string;
   source: string;

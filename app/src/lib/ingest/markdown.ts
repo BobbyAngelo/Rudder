@@ -8,15 +8,11 @@ import { readFileSync, readdirSync, statSync } from "fs";
 import { join, relative, basename, extname } from "path";
 import type { Chunk } from "../retrieval";
 import { toChunks, type RawDoc } from "./enrich";
-
-const IGNORE_DIRS = new Set([
-  "node_modules", ".next", "dist", "build", "out", "coverage", "vendor", "target",
-]);
+import { ignoredName } from "./ignore";
 
 function walk(dir: string, root: string, acc: string[] = [], excludes: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (name.startsWith(".")) continue; // skip .obsidian, .git, etc.
-    if (IGNORE_DIRS.has(name)) continue; // skip dependency/build noise
+    if (ignoredName(name)) continue; // skip dotfiles, dependency/build/vcs noise
     const full = join(dir, name);
     if (excludes.some((ex) => full.includes(ex))) continue; // user exclude rules
     const st = statSync(full);

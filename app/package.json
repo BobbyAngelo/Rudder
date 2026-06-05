@@ -14,6 +14,7 @@
     "recall:why": "tsx scripts/recall-why.ts",
     "ingest:md": "tsx scripts/ingest-md.ts",
     "memory:reset": "tsx scripts/memory-reset.ts",
+    "memory:clean": "tsx scripts/memory-clean.ts",
     "act:scan": "tsx scripts/daily-scan.ts",
     "vault:export": "tsx scripts/vault-export.ts",
     "vault:rebuild": "tsx scripts/vault-rebuild.ts",

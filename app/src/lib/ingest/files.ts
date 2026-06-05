@@ -11,17 +11,13 @@ import { readFileSync, readdirSync, statSync } from "fs";
 import { join, relative } from "path";
 import { isSupported, parseFileBuffer } from "./parse";
 import type { RawDoc } from "./enrich";
-
-const IGNORE_DIRS = new Set([
-  "node_modules", ".next", "dist", "build", "out", "coverage", "vendor", "target", ".git",
-]);
+import { ignoredName } from "./ignore";
 
 const MAX_BYTES = 25 * 1024 * 1024; // skip anything implausibly large for a doc
 
 function walk(dir: string, acc: string[] = [], excludes: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (name.startsWith(".")) continue;
-    if (IGNORE_DIRS.has(name)) continue;
+    if (ignoredName(name)) continue; // dotfiles, dependency/build/vcs noise
     const full = join(dir, name);
     if (excludes.some((ex) => full.includes(ex))) continue;
     const st = statSync(full);
