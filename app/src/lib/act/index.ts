@@ -16,6 +16,18 @@ registerKind({
   generate: async (ctx: ActContext) => surface(ctx.db, ctx.now ?? new Date()),
 });
 
+// "draft": a message or journal entry written in your voice from a surfaced
+// item. Created on demand (see /api/act/draft), not by a background generator.
+// Its effect is {type:"draft_export"} — producing text only. The executor is a
+// deliberate no-op: confirming ("Use this") just marks it done. Rudder never
+// sends a draft; you copy it where you want it.
+registerKind({
+  kind: "draft",
+  label: "Draft",
+  blurb: "Turn a surfaced moment into a message or note in your own voice — yours to copy, never sent.",
+  execute: async () => { /* no-op: a draft is text; using it is a human action */ },
+});
+
 export * from "./types";
 export * from "./registry";
 export * as store from "./store";

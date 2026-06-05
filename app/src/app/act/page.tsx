@@ -4,13 +4,14 @@
    /act — Rudder's Desk.
    The forward-facing inbox. Rudder proposes; you decide. Every card carries a
    grounded rationale and the memory it came from. Nothing acts without your
-   confirm — and in Phase 1 every proposal is a "surface" (no side effect), so
-   confirming simply means "noted."
+   confirm. Surfaces (no side effect) can be turned into drafts — a message or
+   note written in your voice — which you edit and copy. Rudder never sends.
    ═══════════════════════════════════════════════════════ */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Inbox, Loader2, Sparkles, Check, X, Clock, ChevronRight, Quote,
+  PenLine, Copy, RefreshCw,
 } from "lucide-react";
 
 interface Source { id: string; source: string; title: string; date?: string; snippet: string; }
@@ -32,6 +33,7 @@ export default function DeskPage() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [draftingId, setDraftingId] = useState<number | null>(null);
   const [note, setNote] = useState<string>("");
 
   async function load() {
@@ -55,16 +57,44 @@ export default function DeskPage() {
     setScanning(false);
   }
 
-  async function review(id: number, action: "confirm" | "dismiss" | "snooze") {
+  async function review(id: number, action: "confirm" | "dismiss" | "snooze", editedBody?: string) {
     if (busyId) return;
     setBusyId(id);
+    // Persist any edit to a draft before confirming so "Use this" keeps your changes.
+    if (action === "confirm" && typeof editedBody === "string") {
+      await fetch(`/api/act/${id}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "edit", body: editedBody }),
+      }).catch(() => {});
+    }
     await fetch(`/api/act/${id}`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
     }).catch(() => {});
-    // Optimistic: drop it from the desk.
     setProposals((ps) => ps.filter((p) => p.id !== id));
     setBusyId(null);
+  }
+
+  // Turn a surfaced item into a voiced draft; the new draft card appears in place.
+  async function draft(source: Proposal) {
+    if (draftingId) return;
+    setDraftingId(source.id);
+    const d = await fetch("/api/act/draft", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sourceId: source.id }),
+    }).then((r) => r.json()).catch(() => null);
+    if (d?.proposal) {
+      // Insert the draft right after the card it came from.
+      setProposals((ps) => {
+        const i = ps.findIndex((p) => p.id === source.id);
+        const next = [...ps];
+        next.splice(i + 1, 0, d.proposal);
+        return next;
+      });
+    } else {
+      setNote(d?.error || "Couldn't write the draft. Is Ollama running?");
+    }
+    setDraftingId(null);
   }
 
   if (loading) {
@@ -106,7 +136,8 @@ export default function DeskPage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
             {proposals.map((p) => (
-              <Card key={p.id} p={p} busy={busyId === p.id} onReview={review} />
+              <Card key={p.id} p={p} busy={busyId === p.id} drafting={draftingId === p.id}
+                onReview={review} onDraft={draft} />
             ))}
           </div>
         )}
@@ -115,8 +146,21 @@ export default function DeskPage() {
   );
 }
 
-function Card({ p, busy, onReview }: { p: Proposal; busy: boolean; onReview: (id: number, a: "confirm" | "dismiss" | "snooze") => void }) {
+type ReviewFn = (id: number, a: "confirm" | "dismiss" | "snooze", editedBody?: string) => void;
+
+function draftVerb(title: string): string {
+  if (/been a while|quiet/i.test(title)) return "Draft a hello";
+  if (/on this day/i.test(title)) return "Write a reflection";
+  return "Draft the follow-up";
+}
+
+function Card({ p, busy, drafting, onReview, onDraft }: {
+  p: Proposal; busy: boolean; drafting: boolean;
+  onReview: ReviewFn; onDraft: (p: Proposal) => void;
+}) {
   const tint = KIND_TINT[p.kind] || "var(--color-accent)";
+  if (p.kind === "draft") return <DraftCard p={p} busy={busy} tint={tint} onReview={onReview} />;
+
   return (
     <div className="card" style={{ padding: "1.25rem 1.4rem", borderLeft: `3px solid ${tint}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
@@ -148,15 +192,73 @@ function Card({ p, busy, onReview }: { p: Proposal; busy: boolean; onReview: (id
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-        <button className="btn-primary" onClick={() => onReview(p.id, "confirm")} disabled={busy} style={{ fontSize: "0.8rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn-primary" onClick={() => onDraft(p)} disabled={busy || drafting} style={{ fontSize: "0.8rem" }}>
+          {drafting ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />} {drafting ? "Writing…" : draftVerb(p.title)}
+        </button>
+        <button className="btn-ghost" onClick={() => onReview(p.id, "confirm")} disabled={busy || drafting} style={{ border: "1px solid var(--color-border)", fontSize: "0.8rem" }}>
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Noted
         </button>
-        <button className="btn-ghost" onClick={() => onReview(p.id, "snooze")} disabled={busy} style={{ border: "1px solid var(--color-border)", fontSize: "0.8rem" }}>
+        <button className="btn-ghost" onClick={() => onReview(p.id, "snooze")} disabled={busy || drafting} style={{ border: "1px solid var(--color-border)", fontSize: "0.8rem" }}>
           <Clock size={13} /> Later
         </button>
-        <button className="btn-ghost" onClick={() => onReview(p.id, "dismiss")} disabled={busy} style={{ fontSize: "0.8rem", color: "var(--color-text-dim)" }}>
+        <button className="btn-ghost" onClick={() => onReview(p.id, "dismiss")} disabled={busy || drafting} style={{ fontSize: "0.8rem", color: "var(--color-text-dim)" }}>
           <X size={13} /> Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* A draft is editable. "Use this" saves your edits then files it away (Rudder
+   never sends). Copy puts it on your clipboard to paste wherever you like. */
+function DraftCard({ p, busy, tint, onReview }: { p: Proposal; busy: boolean; tint: string; onReview: ReviewFn }) {
+  const [text, setText] = useState(p.body);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  function copy() {
+    navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+  }
+
+  return (
+    <div className="card" style={{ padding: "1.25rem 1.4rem", borderLeft: `3px solid ${tint}`, background: "var(--color-surface-elevated)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+        <span className="badge-base" style={{ background: "var(--color-surface)", color: tint, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><PenLine size={11} /> Draft</span>
+        <span style={{ fontSize: "0.72rem", color: "var(--color-text-dim)" }}>in your voice · not sent</span>
+      </div>
+
+      <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "0.5rem" }}>{p.title}</h3>
+
+      <textarea
+        ref={ref}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={Math.min(Math.max(text.split("\n").length + 1, 4), 14)}
+        style={{
+          width: "100%", resize: "vertical", fontSize: "0.92rem", lineHeight: 1.6,
+          color: "var(--color-text-primary)", background: "var(--color-surface)",
+          border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)",
+          padding: "0.7rem 0.8rem", fontFamily: "inherit", marginBottom: "0.5rem",
+        }}
+      />
+
+      {p.rationale && (
+        <p style={{ fontSize: "0.76rem", lineHeight: 1.5, color: "var(--color-text-dim)", marginBottom: "0.85rem" }}>{p.rationale}</p>
+      )}
+
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn-primary" onClick={() => onReview(p.id, "confirm", text)} disabled={busy} style={{ fontSize: "0.8rem" }}>
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Use this
+        </button>
+        <button className="btn-ghost" onClick={copy} style={{ border: "1px solid var(--color-border)", fontSize: "0.8rem" }}>
+          {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+        </button>
+        <button className="btn-ghost" onClick={() => setText(p.body)} disabled={busy || text === p.body} style={{ fontSize: "0.8rem", color: "var(--color-text-dim)" }}>
+          <RefreshCw size={13} /> Revert
+        </button>
+        <button className="btn-ghost" onClick={() => onReview(p.id, "dismiss")} disabled={busy} style={{ fontSize: "0.8rem", color: "var(--color-text-dim)", marginLeft: "auto" }}>
+          <X size={13} /> Discard
         </button>
       </div>
     </div>
