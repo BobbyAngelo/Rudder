@@ -6,6 +6,7 @@
 
 import { registerKind, type ActContext } from "./registry";
 import { surface } from "./surfacer";
+import { scheduleProposals, writeCalendarEvent } from "./scheduler";
 
 // "surface": propose moments worth your attention. No executor — a surfaced
 // proposal's effect is {type:"none"}, so the store completes it on confirm.
@@ -26,6 +27,27 @@ registerKind({
   label: "Draft",
   blurb: "Turn a surfaced moment into a message or note in your own voice — yours to copy, never sent.",
   execute: async () => { /* no-op: a draft is text; using it is a human action */ },
+});
+
+// "schedule": a dated commitment from memory → a proposed calendar event.
+// Confirming writes a LOCAL calendar entry (sovereign, reversible). External
+// calendars are never written without a separate, explicit step.
+registerKind({
+  kind: "schedule",
+  label: "Schedule",
+  blurb: "Catch a dated commitment and offer to put it on your local calendar.",
+  generate: async (ctx: ActContext) => scheduleProposals(ctx.db, ctx.now ?? new Date()),
+  execute: async (p, ctx) => {
+    if (p.effect.type !== "schedule_local") return;
+    writeCalendarEvent(ctx.db, {
+      title: p.title,
+      description: p.sources[0]?.snippet || "",
+      date: p.effect.date,
+      time: p.effect.time,
+      durationMin: p.effect.durationMin ?? (p.effect.time ? 60 : undefined),
+      category: p.effect.category,
+    });
+  },
 });
 
 export * from "./types";

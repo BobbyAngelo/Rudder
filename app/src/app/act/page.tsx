@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Inbox, Loader2, Sparkles, Check, X, Clock, ChevronRight, Quote,
-  PenLine, Copy, RefreshCw,
+  PenLine, Copy, RefreshCw, CalendarPlus, CalendarClock,
 } from "lucide-react";
 
 interface Source { id: string; source: string; title: string; date?: string; snippet: string; }
@@ -160,6 +160,7 @@ function Card({ p, busy, drafting, onReview, onDraft }: {
 }) {
   const tint = KIND_TINT[p.kind] || "var(--color-accent)";
   if (p.kind === "draft") return <DraftCard p={p} busy={busy} tint={tint} onReview={onReview} />;
+  if (p.kind === "schedule") return <ScheduleCard p={p} busy={busy} tint={tint} onReview={onReview} />;
 
   return (
     <div className="card" style={{ padding: "1.25rem 1.4rem", borderLeft: `3px solid ${tint}` }}>
@@ -260,6 +261,59 @@ function DraftCard({ p, busy, tint, onReview }: { p: Proposal; busy: boolean; ti
         <button className="btn-ghost" onClick={() => onReview(p.id, "dismiss")} disabled={busy} style={{ fontSize: "0.8rem", color: "var(--color-text-dim)", marginLeft: "auto" }}>
           <X size={13} /> Discard
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* A schedule proposal: a dated commitment ready to drop on your LOCAL calendar.
+   "Add to calendar" runs the executor (a local write); external calendars are
+   a separate, deliberate step. */
+function ScheduleCard({ p, busy, tint, onReview }: { p: Proposal; busy: boolean; tint: string; onReview: ReviewFn }) {
+  return (
+    <div className="card" style={{ padding: "1.25rem 1.4rem", borderLeft: `3px solid ${tint}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
+        <span className="badge-base" style={{ background: "var(--color-surface-elevated)", color: tint, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><CalendarClock size={11} /> Schedule</span>
+        <span style={{ fontSize: "0.72rem", color: "var(--color-text-dim)" }}>{p.createdAt?.slice(0, 10)}</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.6rem" }}>
+        <span style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--color-accent-dim)", color: tint, flexShrink: 0 }}><CalendarPlus size={18} /></span>
+        <div>
+          <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--color-text-primary)", lineHeight: 1.2 }}>{p.title}</h3>
+          <p style={{ fontSize: "0.85rem", color: tint, fontWeight: 600, marginTop: "0.1rem" }}>{p.body}</p>
+        </div>
+      </div>
+
+      {p.rationale && (
+        <p style={{ fontSize: "0.8rem", lineHeight: 1.55, color: "var(--color-text-muted)", marginBottom: p.sources.length ? "0.6rem" : "0.9rem", display: "flex", gap: "0.4rem" }}>
+          <ChevronRight size={14} style={{ color: tint, flexShrink: 0, marginTop: "0.1rem" }} />
+          <span>{p.rationale}</span>
+        </p>
+      )}
+
+      {p.sources.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", margin: "0 0 0.95rem 0", paddingLeft: "0.2rem" }}>
+          {p.sources.map((s) => (
+            <div key={s.id} style={{ fontSize: "0.75rem", color: "var(--color-text-dim)", display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
+              <Quote size={12} style={{ flexShrink: 0, marginTop: "0.15rem", opacity: 0.6 }} />
+              <span><span style={{ textTransform: "capitalize", color: "var(--color-text-muted)" }}>{s.source}</span>{s.date ? ` · ${s.date}` : ""} — {s.snippet}{s.snippet.length >= 160 ? "…" : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn-primary" onClick={() => onReview(p.id, "confirm")} disabled={busy} style={{ fontSize: "0.8rem" }}>
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <CalendarPlus size={13} />} Add to calendar
+        </button>
+        <button className="btn-ghost" onClick={() => onReview(p.id, "snooze")} disabled={busy} style={{ border: "1px solid var(--color-border)", fontSize: "0.8rem" }}>
+          <Clock size={13} /> Later
+        </button>
+        <button className="btn-ghost" onClick={() => onReview(p.id, "dismiss")} disabled={busy} style={{ fontSize: "0.8rem", color: "var(--color-text-dim)" }}>
+          <X size={13} /> Dismiss
+        </button>
+        <span style={{ fontSize: "0.7rem", color: "var(--color-text-dim)", marginLeft: "auto" }}>Local calendar only</span>
       </div>
     </div>
   );

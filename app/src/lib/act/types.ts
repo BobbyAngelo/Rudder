@@ -36,7 +36,7 @@ export interface ProposalSource {
 export type ProposalEffect =
   | { type: "none" }
   | { type: "draft_export"; format?: "markdown" | "text" }   // produce text, never send
-  | { type: "schedule_local"; date: string; durationMin?: number }; // local planner only
+  | { type: "schedule_local"; date: string; time?: string; durationMin?: number; category?: string }; // local calendar only
 
 export interface Proposal {
   id: number;

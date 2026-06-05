@@ -15,6 +15,7 @@
 
 import type Database from "better-sqlite3";
 import type { DraftProposal, ProposalSource } from "./types";
+import { parseWhen } from "./when";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -123,11 +124,16 @@ export function openLoops(db: Database.Database, now: Date, withinDays = 90): Dr
     ).all(since) as any[];
   } catch { return []; }
 
+  const today = iso(now);
   const out: DraftProposal[] = [];
   for (const r of rows) {
     const hay = `${r.title || ""} ${r.content || ""}`.toLowerCase();
     const cue = COMMIT_CUES.find((c) => hay.includes(c));
     if (!cue) continue;
+    // If it has a concrete future date, the scheduler turns it into a calendar
+    // proposal instead — don't also nudge about it here.
+    const when = parseWhen(`${r.title || ""}. ${r.content || ""}`, r.date);
+    if (when && when.date >= today) continue;
     out.push({
       kind: "surface",
       title: `Open loop: ${(r.title || (r.content || "").slice(0, 50)).trim()}`,
