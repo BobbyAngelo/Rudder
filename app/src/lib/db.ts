@@ -711,6 +711,14 @@ const MIGRATIONS: Migration[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_proposals_dedupe ON proposals(dedupe_key) WHERE dedupe_key IS NOT NULL;
     `,
   },
+  {
+    name: "028_daily_scan",
+    sql: `
+      -- The daily loop: when the act-loop generators last filled the desk, so a
+      -- scan runs at most once a day (the dedupe index handles repeats anyway).
+      ALTER TABLE user_preferences ADD COLUMN last_scan_at TEXT;
+    `,
+  },
 ];
 
 

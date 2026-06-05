@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { getDB } from "@/lib/db";
 import { allKinds, store, type ProposalStatus } from "@/lib/act";
+import { lastScan } from "@/lib/act/daily";
 
 const VALID: ProposalStatus[] = ["proposed", "confirmed", "executed", "dismissed", "snoozed"];
 
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     const statuses = raw.filter((s): s is ProposalStatus => (VALID as string[]).includes(s));
     const proposals = store.inbox(db, statuses.length ? statuses : ["proposed"]);
     const kinds = allKinds().map((k) => ({ kind: k.kind, label: k.label, blurb: k.blurb }));
-    return NextResponse.json({ proposals, kinds, count: proposals.length });
+    return NextResponse.json({ proposals, kinds, count: proposals.length, lastScanAt: lastScan(db) });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

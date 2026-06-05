@@ -35,24 +35,37 @@ export default function DeskPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [draftingId, setDraftingId] = useState<number | null>(null);
   const [note, setNote] = useState<string>("");
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null);
 
   async function load() {
     const d = await fetch("/api/act").then((r) => r.json()).catch(() => null);
-    if (d && !d.error) { setProposals(d.proposals || []); setKinds(d.kinds || []); }
-    setLoading(false);
-  }
-
-  useEffect(() => { load(); }, []);
-
-  async function scan() {
-    if (scanning) return;
-    setScanning(true); setNote("");
-    const d = await fetch("/api/act/generate", { method: "POST" }).then((r) => r.json()).catch(() => null);
     if (d && !d.error) {
       setProposals(d.proposals || []);
-      setNote(d.added > 0 ? `${d.added} new ${d.added === 1 ? "item" : "items"} on your desk.` : "Nothing new to surface right now.");
-    } else {
-      setNote(d?.error ? `Couldn't scan: ${d.error}` : "Couldn't scan your memory. Is Ollama running?");
+      setKinds(d.kinds || []);
+      setLastScanAt(d.lastScanAt || null);
+    }
+    setLoading(false);
+    // The daily loop: if Rudder hasn't scanned today, fill the desk quietly now.
+    const today = new Date().toISOString().slice(0, 10);
+    if (!d?.lastScanAt || d.lastScanAt.slice(0, 10) !== today) scan(false);
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // `manual` = a click on "Scan now" (forces a re-run); auto-scan is gentle.
+  async function scan(manual = true) {
+    if (scanning) return;
+    setScanning(true); if (manual) setNote("");
+    const d = await fetch("/api/act/generate", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ force: manual }),
+    }).then((r) => r.json()).catch(() => null);
+    if (d && !d.error) {
+      setProposals(d.proposals || []);
+      if (d.lastScanAt) setLastScanAt(d.lastScanAt);
+      if (manual) setNote(d.added > 0 ? `${d.added} new ${d.added === 1 ? "item" : "items"} on your desk.` : "Nothing new to surface right now.");
+    } else if (manual) {
+      setNote(d?.error ? `Couldn't scan: ${d.error}` : "Couldn't scan your memory.");
     }
     setScanning(false);
   }
@@ -110,9 +123,12 @@ export default function DeskPage() {
             <h1 className="page-title">Rudder&apos;s desk</h1>
             <p className="page-subtitle">Things worth your attention, surfaced from your own memory. You decide what happens next — nothing acts without your say.</p>
           </div>
-          <button className="btn-primary" onClick={scan} disabled={scanning} style={{ flexShrink: 0 }}>
-            {scanning ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Scan now
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.3rem", flexShrink: 0 }}>
+            <button className="btn-primary" onClick={() => scan(true)} disabled={scanning}>
+              {scanning ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Scan now
+            </button>
+            <span style={{ fontSize: "0.68rem", color: "var(--color-text-dim)" }}>{scanLabel(lastScanAt, scanning)}</span>
+          </div>
         </header>
 
         {note && (
@@ -152,6 +168,20 @@ function draftVerb(title: string): string {
   if (/been a while|quiet/i.test(title)) return "Draft a hello";
   if (/on this day/i.test(title)) return "Write a reflection";
   return "Draft the follow-up";
+}
+
+// The daily-loop heartbeat: when Rudder last filled the desk.
+function scanLabel(lastScanAt: string | null, scanning: boolean): string {
+  if (scanning) return "scanning…";
+  if (!lastScanAt) return "not scanned yet";
+  const then = new Date(lastScanAt);
+  const mins = Math.floor((Date.now() - then.getTime()) / 60000);
+  if (mins < 2) return "scanned just now";
+  if (mins < 60) return `scanned ${mins}m ago`;
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastScanAt.slice(0, 10) === today) return `scanned ${then.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  const days = Math.floor(mins / 1440);
+  return days <= 1 ? "scanned yesterday" : `scanned ${days}d ago`;
 }
 
 function Card({ p, busy, drafting, onReview, onDraft }: {

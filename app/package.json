@@ -14,6 +14,7 @@
     "recall:why": "tsx scripts/recall-why.ts",
     "ingest:md": "tsx scripts/ingest-md.ts",
     "memory:reset": "tsx scripts/memory-reset.ts",
+    "act:scan": "tsx scripts/daily-scan.ts",
     "mcp": "tsx scripts/mcp-server.ts"
   },
   "dependencies": {
