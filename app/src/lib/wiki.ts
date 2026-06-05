@@ -107,6 +107,16 @@ export function buildPersonPage(p: Person, mentions: Mention[], connected: strin
 
 const STOP_PHRASES = new Set([
   "united states", "new york", "los angeles", "san francisco", // generic places, not personal topics
+  "new feature", "bug fix", "bug fixes", "build status", "quick start", "spec compliance",
+]);
+
+// A capitalized phrase that STARTS with one of these is almost always a sentence
+// fragment ("The Next…", "What Rudder…", "Our Alignment"), not a real topic.
+const LEAD_STOPWORDS = new Set([
+  "the", "a", "an", "this", "that", "these", "those", "our", "my", "your", "their",
+  "his", "her", "its", "what", "where", "when", "why", "how", "which", "who",
+  "and", "but", "or", "as", "if", "so", "we", "i", "it", "they", "you", "he", "she",
+  "new", "every", "each", "some", "any", "all", "no",
 ]);
 
 /** Detect recurring topics/places: multi-word proper nouns + explicit [[wikilinks]]
@@ -130,6 +140,8 @@ export function extractTopics(db: Database.Database, peopleNames: string[]): { t
       const term = collapse(raw);
       const low = term.toLowerCase();
       if (STOP_PHRASES.has(low)) continue;
+      // Drop sentence fragments that lead with a function word ("The Next", "Our Work").
+      if (LEAD_STOPWORDS.has(term.split(/\s+/)[0].toLowerCase())) continue;
       // Skip anything that is or contains a known person.
       if (term.split(/\s+/).some((w) => peopleWords.has(w.toLowerCase()))) continue;
       if (!display.has(low)) display.set(low, term);

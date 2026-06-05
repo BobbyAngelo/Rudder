@@ -14,6 +14,8 @@ import { buildDemoChunks, buildDemoIdentity } from "../src/lib/demoData";
 import { indexIdentity } from "../src/lib/identity";
 import { ollamaEmbed } from "../src/lib/ollama";
 import { surface } from "../src/lib/act/surfacer";
+import { exportChunkIndexToVault, vaultDir } from "../src/lib/vault";
+import { compileWiki } from "../src/lib/wiki";
 
 const embed = (t: string) => ollamaEmbed(t);
 
@@ -67,7 +69,14 @@ async function main() {
     console.log(`  Identity — seeded (memory indexing skipped: ${e.message}).`);
   }
 
-  // 3. Land in a working app.
+  // 3. Mirror to the files-first vault + compile the wiki, so the whole graph
+  //    is openable in Obsidian straight after seeding.
+  const { files } = exportChunkIndexToVault(db);
+  const wiki = compileWiki(db, now);
+  console.log(`  Vault — ${files} raw files; wiki — ${wiki.people} people + ${wiki.topics} topics.`);
+  console.log(`  Open in Obsidian: ${vaultDir()}\n`);
+
+  // 4. Land in a working app.
   db.prepare("INSERT OR IGNORE INTO user_preferences (id) VALUES (1)").run();
   db.prepare(
     "UPDATE user_preferences SET onboarding_completed = 1, enabled_modules = ? WHERE id = 1"
