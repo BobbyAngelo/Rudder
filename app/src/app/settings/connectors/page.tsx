@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FolderPlus, RefreshCw, Trash2, Loader2, Plug, CheckCircle2, UploadCloud, FileText, BookText, CalendarDays, Users, HeartPulse } from "lucide-react";
+import { FolderPlus, RefreshCw, Trash2, Loader2, Plug, CheckCircle2, UploadCloud, FileText, BookText, CalendarDays, Users, HeartPulse, Image } from "lucide-react";
 
 const SUPPORTED = "txt, md, html, csv, tsv, json, rtf · pdf, docx · images (OCR)";
-type Kind = "markdown" | "files" | "calendar" | "contacts" | "health" | "linkedin" | "email" | "meta" | "twitter" | "google";
+type Kind = "markdown" | "files" | "calendar" | "contacts" | "health" | "linkedin" | "email" | "meta" | "twitter" | "google" | "photos";
 
 interface Connector {
   id: number;
@@ -118,6 +118,7 @@ export default function ConnectorsPage() {
               { k: "meta" as Kind, label: "Meta (FB/IG)", icon: <FileText size={13} /> },
               { k: "twitter" as Kind, label: "X / Twitter", icon: <FileText size={13} /> },
               { k: "google" as Kind, label: "Google Takeout", icon: <FileText size={13} /> },
+              { k: "photos" as Kind, label: "Photos", icon: <Image size={13} /> },
             ]).map(({ k, label, icon }) => (
               <button
                 key={k}
@@ -149,6 +150,7 @@ export default function ConnectorsPage() {
                 : kind === "meta" ? "/Users/you/Downloads/facebook-export"
                 : kind === "twitter" ? "/Users/you/Downloads/twitter-archive"
                 : kind === "google" ? "/Users/you/Downloads/Takeout"
+                : kind === "photos" ? "/Users/you/Downloads/Takeout/Google Photos"
                 : "/Users/you/Documents/Notes"
               }
               className="flex-1 px-3 py-2 rounded-lg text-[13px] outline-none"
@@ -183,6 +185,8 @@ export default function ConnectorsPage() {
               ? <>Download your archive (X → Settings → <em>Download an archive of your data</em>), unzip it, and point at the folder. Your tweets &amp; DMs become memory — parsed locally; retweets skipped.</>
               : kind === "google"
               ? <>Export from <a href="https://takeout.google.com" target="_blank" rel="noreferrer">takeout.google.com</a> (pick <strong>JSON</strong>), unzip, and point at the Takeout folder. Search / YouTube / Chrome activity becomes one memory per day. (For contacts &amp; calendar, use those connectors on the exported files.)</>
+              : kind === "photos"
+              ? <>Export <strong>Google Photos</strong> via <a href="https://takeout.google.com" target="_blank" rel="noreferrer">takeout.google.com</a> (it includes a JSON next to each photo), unzip, and point at the <em>Google Photos</em> folder. Dates, places, captions &amp; tagged people become one memory per day — parsed locally, no images uploaded, no face model.</>
               : <>Paste the full path to a folder on this computer. Subfolders are included; <code>node_modules</code>, <code>.git</code>, etc. are skipped.</>}
           </p>
           {error && <p className="text-[12px] mt-2" style={{ color: "var(--color-danger)" }}>{error}</p>}

@@ -18,6 +18,7 @@ import { readEmailMbox } from "./ingest/email";
 import { readMeta } from "./ingest/meta";
 import { readTwitter } from "./ingest/twitter";
 import { readGoogleTakeout } from "./ingest/google";
+import { readPhotos } from "./ingest/photos";
 import { SUPPORTED_LABEL } from "./ingest/parse";
 import { toChunks, type RawDoc } from "./ingest/enrich";
 import { indexChunks, pruneConnector, type EmbedFn } from "./memory";
@@ -204,7 +205,19 @@ const google: Connector = {
   },
 };
 
-export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter, google };
+const photos: Connector = {
+  type: "photos",
+  label: "Photos (Google Takeout)",
+  config: [
+    { key: "path", label: "Google Photos / Takeout folder", type: "path", placeholder: "/Users/you/Downloads/Takeout/Google Photos" },
+  ],
+  list: (cfg) => {
+    assertPath(cfg.path);
+    return readPhotos(cfg.path);
+  },
+};
+
+export const REGISTRY: Record<string, Connector> = { markdown, files, calendar, contacts, health, linkedin, email, meta, twitter, google, photos };
 
 // Accepted by the universal-drop door, surfaced in the UI.
 export const FILES_SUPPORTED = SUPPORTED_LABEL;

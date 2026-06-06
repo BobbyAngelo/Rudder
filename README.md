@@ -21,9 +21,9 @@
 
 ---
 
-Everyone else's "AI that knows you" uploads your life to their servers. In the last year, two of the biggest always-on memory products — **Limitless** and **Bee** — were quietly acquired by **Meta** and **Amazon**, their users' most intimate recordings absorbed overnight (one product was bricked within two weeks). Rudder is the opposite bet.
+There are two kinds of "AI memory." One remembers your *chats* — what you asked, what you were planning — to be a slightly better assistant. **Rudder is the other kind: the vault and processor for the actual data of your life.** Your photos, email, calendar, messages, health, the people you know — the exports already sitting in Google Takeout, Meta, and iCloud — pulled into one place and turned into a memory that can answer, act, and tell your story. They remember the conversation. Rudder remembers the life.
 
-**Rudder remembers your whole life on plain files you own, and runs on your own machine — so it can't be leaked, bricked, or bought.** It gives any local LLM a private, persistent understanding of *you* — your notes, calendar, health, the people in your life, your history — answers with citations, turns it into your story, and acts on it with a human gate. Fully offline. No cloud, no data mining, no account. Yours.
+And it keeps it where it belongs: **on your own machine, in plain files you own.** There are two kinds of company in the world — those that have been hacked, and those that don't know it yet. The only data that can't leak is the data that never leaves your hands. In the last year, two of the biggest always-on memory products — **Limitless** and **Bee** — were acquired by **Meta** and **Amazon**, their users' most intimate recordings absorbed overnight, one product bricked within two weeks. **Rudder can't be leaked, bricked, or bought** — because it was never theirs to take. No cloud, no data mining, no account. Yours.
 
 ## The loop
 
