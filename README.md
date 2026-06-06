@@ -21,29 +21,28 @@
 
 ---
 
-Everyone else's "AI that knows you" uploads your life to their servers. **Rudder is the one that knows your whole life without it ever leaving your machine** — and can act on it.
+Everyone else's "AI that knows you" uploads your life to their servers. In the last year, two of the biggest always-on memory products — **Limitless** and **Bee** — were quietly acquired by **Meta** and **Amazon**, their users' most intimate recordings absorbed overnight (one product was bricked within two weeks). Rudder is the opposite bet.
 
-It gives any local LLM a private, persistent understanding of *you* — your notes, calendar, health, the people in your life, your history — and answers from that memory with citations, fully offline. No cloud, no data mining, no account. Yours.
+**Rudder remembers your whole life on plain files you own, and runs on your own machine — so it can't be leaked, bricked, or bought.** It gives any local LLM a private, persistent understanding of *you* — your notes, calendar, health, the people in your life, your history — answers with citations, turns it into your story, and acts on it with a human gate. Fully offline. No cloud, no data mining, no account. Yours.
 
-## The hero loop
+## The loop
 
-Point Rudder at a folder of notes, a calendar export, your contacts, an Apple Health export. Then ask your **local** model something only a system that knows your whole life could answer:
+Point Rudder at your notes, calendar, contacts, email, and exports. Then:
 
-> **"What should I prep for tomorrow?"**
->
-> → It pulls your calendar, the people in those meetings, your past notes with them, and your recent energy/health — and drafts the prep. With sources. Airplane mode on the whole time.
+- **Ask** anything only a system that knows your whole life could answer — *"What should I prep for tomorrow?"* — and get an answer **with sources**, airplane mode on.
+- **Act** on it: Rudder's Desk surfaces what matters (a day from a past year, a friend gone quiet, an open loop), drafts the reply in your voice, and offers to put dated commitments on your calendar — **nothing happens without your confirm**.
+- **Own** it: every source becomes plain Markdown in a vault you can open in Obsidian, and Rudder compiles a personal **wiki** of the people and places in your life — drawing it as a graph.
+- **Tell** it: the **Life Historian** turns your timeline into cited, voiced story — chapters and a whole book, grounded in what really happened, never invented.
 
-That single loop — **ingest → ask across your whole life → act, offline** — is the entire product.
-
-> **What's shipped today:** the **ingest → ask → cited-answer** loop runs end-to-end, fully offline, over five source types. The **acting** step (drafting, scheduling, surfacing, with confirm-before-act) is the active next milestone — see [What you can ingest](#what-you-can-ingest) for the connector status and the roadmap.
+> **What ships today, all fully offline:** ingest → ask → cited answer, **plus** the act loop (surface · draft · schedule, with confirm-before-act), the files-first vault, the people/topic wiki, and the Life Historian. Always-on capture hardware is the active frontier — see [Capture](#what-you-can-ingest).
 
 ## Why Rudder
 
-- **Sovereign by default.** Every byte is parsed, embedded, and stored locally in one SQLite file. The pipeline never phones home. There is no server to trust.
-- **Your whole life, not one silo.** Notes, calendar, contacts, and health already flow into one memory; more sources land every week. Breadth is the moat.
-- **Answers with receipts.** Every response cites the exact items it came from. No hallucinated facts about your own life.
+- **Sovereign structurally — not as a promise.** Your raw memory is plain Markdown files you own (Obsidian-compatible); SQLite is only a rebuildable index. Nothing phones home. There's no server, and no company, to trust — and nothing to acquire out from under you.
+- **Grounded, with receipts.** Every answer, every story scene, every nudge cites the real source it came from. No hallucinated facts about your own life.
+- **It acts, with a human gate.** Beyond recall: the Desk drafts, schedules, and surfaces — and never sends or writes anything without your explicit confirm.
+- **Your whole life, not one silo — and your story.** Notes, calendar, contacts, health, email, and your social/Google exports flow into one memory; the Life Historian turns it into a book.
 - **Bring your own model.** Ollama, LM Studio, or any OpenAI-compatible endpoint. Swap models freely; your memory stays put.
-- **Built to act, not just answer.** The cited-answer loop ships today; the agent loop that drafts, schedules, and surfaces — with confirm-before-act — is the current milestone.
 
 ## Quick start
 
@@ -93,7 +92,14 @@ Connect a source once; Rudder indexes it into local memory and re-syncs only wha
 | **Calendar (.ics)** | Events with dates + attendees — powers "what's this week" | ✅ |
 | **Contacts (.vcf)** | The people backbone for "who do I know at…" | ✅ |
 | **Apple Health** | Weekly metric summaries + workouts — sovereign quantified-self | ✅ |
-| Email · browser history · chat exports · passive capture | The rest of your life | 🔜 |
+| **Email (.mbox)** | Gmail Takeout / Apple Mail / Thunderbird — your correspondence | ✅ |
+| **LinkedIn export** | Roles, education, skills — your professional history | ✅ |
+| **Meta (FB/IG) export** | Posts, comments, message threads | ✅ |
+| **X / Twitter archive** | Your tweets and DMs | ✅ |
+| **Google Takeout** | Activity, YouTube, Chrome history → one entry per day | ✅ |
+| Browser history · chat exports · passive capture | The rest of your life | 🔜 |
+
+All external sources are **export-based and sovereign** — you download your own data from the source and Rudder parses it locally. No scraping, no relay, no third-party account.
 
 You can also **drag any file** straight onto the Connectors page for a one-off capture, or POST to the local `/api/ingest` door from your own devices.
 
