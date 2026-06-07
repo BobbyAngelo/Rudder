@@ -18,6 +18,7 @@ import { getDB } from "@/lib/db";
 import { pushDocs, type PushItem } from "@/lib/ingest/push";
 import { ollamaEmbed } from "@/lib/ollama";
 import { transcribeAudio } from "@/lib/transcribe";
+import { polishVoiceNote, captureVocab } from "@/lib/capture/polish";
 
 const embed = (t: string) => ollamaEmbed(t);
 
@@ -39,12 +40,20 @@ export async function POST(request: Request) {
 
   try {
     let items: PushItem[] = [];
+    let polishedFlag = false;
 
     if (ct.includes("multipart/form-data")) {
       const form = await request.formData();
       const file = form.get("audio") as File | null;
       if (!file) return NextResponse.json({ error: "No 'audio' file" }, { status: 400 });
-      const text = await transcribeAudio(Buffer.from(await file.arrayBuffer()), file.name || "audio.wav");
+      const raw = await transcribeAudio(Buffer.from(await file.arrayBuffer()), file.name || "audio.wav");
+
+      // Eloquent-style cleanup: turn the rough transcript into a clean note, in
+      // the speaker's voice, fixing names against what they actually know.
+      // Best-effort — a model outage falls back to the raw transcript.
+      const mode = (db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as { default_execution_mode?: string } | undefined)?.default_execution_mode || "local_ollama";
+      const { text, polished } = await polishVoiceNote(raw, captureVocab(db), mode);
+      polishedFlag = polished;
 
       // people may arrive as a JSON array or a comma-separated string
       const peopleRaw = (form.get("people") as string) || "";
@@ -77,7 +86,7 @@ export async function POST(request: Request) {
     }
 
     const result = await pushDocs(db, items, embed);
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, polished: polishedFlag, ...result });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
