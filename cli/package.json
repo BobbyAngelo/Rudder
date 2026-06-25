@@ -1,0 +1,28 @@
+{
+  "name": "@rudder/cli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rudder CLI — sovereign life operating system orchestrator",
+  "type": "module",
+  "bin": {
+    "rudder": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsx src/index.ts --help",
+    "dev": "tsx src/index.ts",
+    "rudder": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "chalk": "^5.4.1",
+    "chokidar": "^4.0.1",
+    "commander": "^13.1.0",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "tsx": "^4.19.0",
+    "typescript": "^5"
+  }
+}

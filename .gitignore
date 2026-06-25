@@ -1,0 +1,28 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# env & secrets — NEVER commit
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+**/auth-credentials.json
+
+# personal / runtime data — NEVER commit
+data/
+temp/
+
+# excluded from open source
+legacy/
+scratch/
+
+# misc
+.DS_Store
+*.log
+.venv/

@@ -1,0 +1,11 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Antigravity AI
+ORG:Google DeepMind;Agentic Coding
+TITLE:Lead AI Developer
+EMAIL;TYPE=INTERNET:antigravity@deepmind.com
+TEL;TYPE=CELL:123-456-7890
+URL:https://deepmind.google/antigravity
+X-SOCIALPROFILE;type=linkedin:https://linkedin.com/in/antigravity
+NOTE:A pair programming assistant.
+END:VCARD

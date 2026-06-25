@@ -1,0 +1,12 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Rudder//Calendar//EN
+BEGIN:VEVENT
+UID:event-123@rudder.local
+DTSTART:20260625T090000
+DTEND:20260625T100000
+SUMMARY:Pair Programming Session
+DESCRIPTION:Let's complete the ingest and parsers tasks.
+LOCATION:Virtual Office
+END:VEVENT
+END:VCALENDAR

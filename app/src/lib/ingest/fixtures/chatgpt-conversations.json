@@ -1,0 +1,44 @@
+[
+  {
+    "id": "conv-trip-planning",
+    "title": "Trip planning",
+    "create_time": 1714564800,
+    "current_node": "msg-2",
+    "mapping": {
+      "root": {
+        "id": "root",
+        "message": null,
+        "parent": null,
+        "children": ["msg-1"]
+      },
+      "msg-1": {
+        "id": "msg-1",
+        "message": {
+          "id": "msg-1",
+          "author": { "role": "user" },
+          "create_time": 1714564801,
+          "content": {
+            "content_type": "text",
+            "parts": ["Can you help me plan a day in Buenos Aires?"]
+          }
+        },
+        "parent": "root",
+        "children": ["msg-2"]
+      },
+      "msg-2": {
+        "id": "msg-2",
+        "message": {
+          "id": "msg-2",
+          "author": { "role": "assistant" },
+          "create_time": 1714564812,
+          "content": {
+            "content_type": "text",
+            "parts": ["Absolutely. Start with coffee in Palermo, visit MALBA, and leave time for dinner in San Telmo."]
+          }
+        },
+        "parent": "msg-1",
+        "children": []
+      }
+    }
+  }
+]
