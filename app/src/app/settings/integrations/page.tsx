@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   HardDrive, Server, Cpu, Plus, Settings, CheckCircle2, ChevronLeft,
   X, Trash2, FolderOpen, Terminal, ChevronDown, Camera, RefreshCw,
-  Upload, AlertCircle, Mail,
+  Upload, AlertCircle, Mail, Wifi, Code, Smartphone
 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
 import OKFExportCard from "@/components/OKFExportCard";
@@ -44,6 +44,10 @@ export default function IntegrationsPage() {
   const [smtpUser, setSmtpUser] = useState("");
   const [smtpPass, setSmtpPass] = useState("");
   const [inboxSyncEnabled, setInboxSyncEnabled] = useState(false);
+
+  // Telemetry Gate State
+  const [devices, setDevices] = useState<any[]>([]);
+  const [showSnippet, setShowSnippet] = useState<"arduino" | "python" | null>(null);
 
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{
@@ -149,6 +153,7 @@ export default function IntegrationsPage() {
         setSmtpUser(data.execution?.smtp_user || "");
         setSmtpPass(data.execution?.smtp_pass || "");
         setInboxSyncEnabled(!!data.execution?.inbox_sync_enabled);
+        setDevices(data.devices || []);
 
         setIsLoading(false);
       });
@@ -358,6 +363,126 @@ export default function IntegrationsPage() {
                     />
                   </div>
                 </div>
+              </div>
+            </CardBody>
+          </Card>
+        </section>
+
+        {/* ── Hardware Telemetry Gateway ── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Wifi size={18} className="text-amber-400" />
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Hardware Telemetry Gateway</h2>
+          </div>
+          <Card>
+            <CardBody className="space-y-4">
+              <div>
+                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                  Stream biometrics and environment metrics directly from smart rings, ESP32 microcontrollers, or wearables over local Wi-Fi.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono">
+                  Local HTTP POST Endpoint
+                </label>
+                <div className="p-3.5 rounded-xl border font-mono text-[11px] select-all bg-black/40 text-amber-500" style={{ borderColor: "var(--color-border)" }}>
+                  POST http://localhost:3000/api/ingest/telemetry
+                </div>
+              </div>
+
+              {/* Connected Devices */}
+              <div className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-text-dim)] font-medium">
+                  Active Connected Devices
+                </div>
+                {devices.length === 0 ? (
+                  <p className="text-xs text-[var(--color-text-muted)] italic pl-1">
+                    No hardware devices streaming telemetry yet. Send a POST request to get started.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {devices.map((dev) => (
+                      <div 
+                        key={dev.device_id}
+                        className="flex items-center justify-between p-3 rounded-xl border text-xs"
+                        style={{ borderColor: "var(--color-border)", background: "var(--color-background-elevated)" }}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                          <div className="flex items-center gap-1 text-[var(--color-text-primary)] font-semibold font-mono">
+                            <Smartphone size={13} className="text-neutral-500" />
+                            {dev.device_id}
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-[var(--color-text-muted)] font-mono">
+                          Last seen: {new Date(dev.last_seen).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Code Snippets Accordion */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <button 
+                    onClick={() => setShowSnippet(prev => prev === "arduino" ? null : "arduino")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-semibold transition-all hover:bg-neutral-800 ${
+                      showSnippet === "arduino" ? "bg-neutral-800 text-amber-400 border-amber-500/30" : "text-[var(--color-text-muted)]"
+                    }`}
+                    style={{ borderColor: "var(--color-border)" }}
+                  >
+                    <Code size={11} /> ESP32 (Arduino C++)
+                  </button>
+
+                  <button 
+                    onClick={() => setShowSnippet(prev => prev === "python" ? null : "python")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-semibold transition-all hover:bg-neutral-800 ${
+                      showSnippet === "python" ? "bg-neutral-800 text-amber-400 border-amber-500/30" : "text-[var(--color-text-muted)]"
+                    }`}
+                    style={{ borderColor: "var(--color-border)" }}
+                  >
+                    <Code size={11} /> MicroPython
+                  </button>
+                </div>
+
+                {showSnippet === "arduino" && (
+                  <div className="space-y-1.5 animate-fade-in">
+                    <pre className="p-3 rounded bg-black/60 border border-[var(--color-border)] font-mono text-[10px] text-[var(--color-text-primary)] overflow-x-auto select-all w-full leading-relaxed">
+{`#include <WiFi.h>
+#include <HTTPClient.h>
+
+void sendTelemetry(int hr, int hrv, int steps) {
+  HTTPClient http;
+  http.begin("http://localhost:3000/api/ingest/telemetry");
+  http.addHeader("Content-Type", "application/json");
+
+  String json = "{\\"device_id\\":\\"esp32-sensor\\",\\"metrics\\":{\\"heart_rate\\":" + String(hr) + ",\\"hrv\\":" + String(hrv) + ",\\"steps\\":" + String(steps) + "}}";
+  int httpCode = http.POST(json);
+  http.end();
+}`}
+                    </pre>
+                  </div>
+                )}
+
+                {showSnippet === "python" && (
+                  <div className="space-y-1.5 animate-fade-in">
+                    <pre className="p-3 rounded bg-black/60 border border-[var(--color-border)] font-mono text-[10px] text-[var(--color-text-primary)] overflow-x-auto select-all w-full leading-relaxed">
+{`import urequests, json
+
+def send_telemetry(hr, hrv, steps):
+    url = "http://localhost:3000/api/ingest/telemetry"
+    payload = {
+        "device_id": "esp32-sensor",
+        "metrics": {"heart_rate": hr, "hrv": hrv, "steps": steps}
+    }
+    res = urequests.post(url, json=payload)
+    res.close()`}
+                    </pre>
+                  </div>
+                )}
               </div>
             </CardBody>
           </Card>

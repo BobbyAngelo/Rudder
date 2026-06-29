@@ -26,10 +26,20 @@ export async function GET() {
       WHERE id = 1
     `).get();
 
+    // Get unique telemetry devices
+    const devices = db.prepare(`
+      SELECT DISTINCT origin_provenance as device_id, MAX(when_timestamp) as last_seen 
+      FROM reality_nodes 
+      WHERE what_classification = 'Device Telemetry'
+      GROUP BY origin_provenance
+      ORDER BY last_seen DESC
+    `).all();
+
     return NextResponse.json({
       data_sources: sources,
       mcp_servers: mcpServers,
-      execution: prefs
+      execution: prefs,
+      devices
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
