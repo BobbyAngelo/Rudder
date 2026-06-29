@@ -147,6 +147,15 @@ program
     await backupCommand({ port: options.port });
   });
 
+// ── rudder overlay ──
+program
+  .command("overlay")
+  .description("Open the ambient voice assistant overlay")
+  .action(async () => {
+    const { overlayCommand } = await import("./commands/overlay.js");
+    await overlayCommand();
+  });
+
 // ── rudder mcp ──
 program
   .command("mcp")
