@@ -16,6 +16,41 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Screenshots Gallery
+
+### Ambient Voice Assistant Overlay
+![Ambient Voice Assistant Overlay](./docs/screenshots/assistant_overlay.png)
+
+### Hardware Telemetry Gateway Settings
+![Hardware Telemetry Gateway](./docs/screenshots/hardware_telemetry_gate.png)
+
+### Mission Control Dashboard & Autonomic Rebalancer
+![Mission Control](./docs/screenshots/onboarding.png)
+
+### Life & Identity
+| Identity | People & Relationships |
+| --- | --- |
+| ![Identity](./docs/screenshots/identity.png) | ![People](./docs/screenshots/people.png) |
+
+| Health Ledger | Biographer Ledger |
+| --- | --- |
+| ![Health](./docs/screenshots/health.png) | ![Biographer](./docs/screenshots/biographer.png) |
+
+### Operations & Planner
+| Timeline & Planner | Knowledge Graph | Career Hub |
+| --- | --- | --- |
+| ![Planner](./docs/screenshots/planner.png) | ![Graph](./docs/screenshots/graph.png) | ![Career](./docs/screenshots/career.png) |
+
+### Creative
+| Writing Studio | Media & Chronicles |
+| --- | --- |
+| ![Writing](./docs/screenshots/writing.png) | ![Media](./docs/screenshots/media.png) |
+
+### Infrastructure
+| Hardware Node | Settings & Connections |
+| --- | --- |
+| ![Hardware](./docs/screenshots/hardware.png) | ![Settings](./docs/screenshots/settings.png) |
+
 ## Configuration
 
 Copy the environment template and fill in your values:
