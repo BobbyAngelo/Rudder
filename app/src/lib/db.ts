@@ -1071,6 +1071,13 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_rebalance_status ON rebalance_proposals(status);
     `,
   },
+  {
+    name: "035_tasks_external_id",
+    sql: `
+      ALTER TABLE tasks ADD COLUMN external_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_external_id ON tasks(external_id);
+    `,
+  },
 ];
 
 

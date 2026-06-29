@@ -5,6 +5,7 @@ import * as crypto from "crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { parseBookmarks } from "./ingest/bookmarks";
+import { parseTasksBackup } from "./ingest/tasks-backup";
 
 /* ═══════════════════════════════════════════════════════
    Sync Daemon — Dynamic Folder Watcher and Parser
@@ -18,9 +19,10 @@ const DEVICES_DIR = path.join(SYNC_DIR, "devices");
 const CORRESPONDENCE_DIR = path.join(SYNC_DIR, "correspondence");
 const CHAT_DIR = path.join(SYNC_DIR, "chat");
 const BOOKMARKS_DIR = path.join(SYNC_DIR, "bookmarks");
+const TASKS_DIR = path.join(SYNC_DIR, "tasks");
 
 // Ensure default sync directories exist
-[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR, BOOKMARKS_DIR].forEach((dir) => {
+[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR, BOOKMARKS_DIR, TASKS_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`[sync-daemon] Created directory: ${dir}`);
@@ -32,7 +34,7 @@ const db = getDB();
 // Seed default data sources if table is empty
 try {
   const count = db.prepare("SELECT count(*) as count FROM data_sources").get() as { count: number };
-  if (count.count === 0 || count.count === 2 || count.count === 3 || count.count === 4 || count.count === 5 || count.count === 6) {
+  if (count.count === 0 || count.count === 2 || count.count === 3 || count.count === 4 || count.count === 5 || count.count === 6 || count.count === 7) {
     db.prepare(`
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('Typewriter Logs', ?, 'folder', 'active')
@@ -62,6 +64,11 @@ try {
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('Web Bookmarks', ?, 'bookmarks', 'active')
     `).run(BOOKMARKS_DIR);
+
+    db.prepare(`
+      INSERT OR IGNORE INTO data_sources (name, path, type, status)
+      VALUES ('Generic Tasks Backup', ?, 'tasks_backup', 'active')
+    `).run(TASKS_DIR);
     
     console.log("[sync-daemon] Seeded default data sources in database.");
   }
@@ -640,6 +647,51 @@ function processBookmarks(filePath: string, file: string, processedDir: string) 
 }
 
 /**
+ * Ingest Todoist/Google Tasks backups
+ */
+function processTasksBackup(filePath: string, file: string, processedDir: string) {
+  try {
+    console.log(`[sync-daemon] Parsing tasks backup: ${file}`);
+    const content = fs.readFileSync(filePath, "utf-8");
+    const tasks = parseTasksBackup(content);
+
+    const checkStmt = db.prepare("SELECT id FROM tasks WHERE external_id = ?");
+    const insertStmt = db.prepare(`
+      INSERT INTO tasks (title, description, status, priority, due_date, external_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    let inserted = 0;
+    let skipped = 0;
+
+    db.transaction(() => {
+      for (const t of tasks) {
+        const existing = checkStmt.get(t.externalId);
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        insertStmt.run(
+          t.title,
+          t.description,
+          t.status,
+          t.priority,
+          t.dueDate,
+          t.externalId
+        );
+        inserted++;
+      }
+    })();
+
+    console.log(`[sync-daemon] ✅ Ingested tasks backup: ${file}. Ingested: ${inserted}, Skipped: ${skipped}`);
+    fs.renameSync(filePath, path.join(processedDir, file));
+  } catch (err: any) {
+    console.error(`[sync-daemon] ❌ Error processing tasks backup [${file}]: ${err.message}`);
+  }
+}
+
+/**
  * Scan a single registered data source directory
  */
 function scanSource(source: { id: number; name: string; path: string; type: string }) {
@@ -686,6 +738,9 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
       processedCount++;
     } else if (file.endsWith(".html") && source.type === "bookmarks") {
       processBookmarks(filePath, file, processedDir);
+      processedCount++;
+    } else if (file.endsWith(".json") && source.type === "tasks_backup") {
+      processTasksBackup(filePath, file, processedDir);
       processedCount++;
     }
   }
