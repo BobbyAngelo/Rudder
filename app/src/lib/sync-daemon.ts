@@ -4,6 +4,7 @@ import { getDB } from "./db";
 import * as crypto from "crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
+import { parseBookmarks } from "./ingest/bookmarks";
 
 /* ═══════════════════════════════════════════════════════
    Sync Daemon — Dynamic Folder Watcher and Parser
@@ -16,9 +17,10 @@ const HEALTH_DIR = path.join(SYNC_DIR, "health");
 const DEVICES_DIR = path.join(SYNC_DIR, "devices");
 const CORRESPONDENCE_DIR = path.join(SYNC_DIR, "correspondence");
 const CHAT_DIR = path.join(SYNC_DIR, "chat");
+const BOOKMARKS_DIR = path.join(SYNC_DIR, "bookmarks");
 
 // Ensure default sync directories exist
-[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR].forEach((dir) => {
+[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR, BOOKMARKS_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`[sync-daemon] Created directory: ${dir}`);
@@ -30,7 +32,7 @@ const db = getDB();
 // Seed default data sources if table is empty
 try {
   const count = db.prepare("SELECT count(*) as count FROM data_sources").get() as { count: number };
-  if (count.count === 0 || count.count === 2 || count.count === 3 || count.count === 4 || count.count === 5) {
+  if (count.count === 0 || count.count === 2 || count.count === 3 || count.count === 4 || count.count === 5 || count.count === 6) {
     db.prepare(`
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('Typewriter Logs', ?, 'folder', 'active')
@@ -55,6 +57,11 @@ try {
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('AI Chat Exports', ?, 'chat_export', 'active')
     `).run(CHAT_DIR);
+
+    db.prepare(`
+      INSERT OR IGNORE INTO data_sources (name, path, type, status)
+      VALUES ('Web Bookmarks', ?, 'bookmarks', 'active')
+    `).run(BOOKMARKS_DIR);
     
     console.log("[sync-daemon] Seeded default data sources in database.");
   }
@@ -577,6 +584,62 @@ function processChatExport(filePath: string, file: string, processedDir: string)
 }
 
 /**
+ * Ingest Netscape HTML bookmarks file
+ */
+function processBookmarks(filePath: string, file: string, processedDir: string) {
+  try {
+    console.log(`[sync-daemon] Parsing bookmarks export: ${file}`);
+    const htmlContent = fs.readFileSync(filePath, "utf-8");
+    const bookmarks = parseBookmarks(htmlContent);
+
+    const checkStmt = db.prepare("SELECT event_id FROM reality_nodes WHERE event_id = ?");
+    const insertStmt = db.prepare(`
+      INSERT INTO reality_nodes (
+        event_id, when_timestamp, where_context, who_entities, what_classification, 
+        why_insight, how_actions, state_vitals, gravity_score, origin_provenance, raw_blob
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let inserted = 0;
+    let skipped = 0;
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    db.transaction(() => {
+      for (const bm of bookmarks) {
+        const urlHash = crypto.createHash("sha256").update(bm.url).digest("hex").slice(0, 16);
+        const eventId = `bookmark-${urlHash}`;
+        const existing = checkStmt.get(eventId);
+
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        insertStmt.run(
+          eventId,
+          bm.addDate || now,
+          bm.title,
+          "[]", // who_entities
+          "bookmark", // what_classification
+          bm.url, // why_insight (URL)
+          JSON.stringify(["bookmark"]), // how_actions
+          "{}", // state_vitals
+          1, // gravity_score
+          "bookmarks", // origin_provenance
+          bm.url // raw_blob
+        );
+        inserted++;
+      }
+    })();
+
+    console.log(`[sync-daemon] ✅ Ingested bookmarks export: ${file}. Ingested: ${inserted}, Skipped: ${skipped}`);
+    fs.renameSync(filePath, path.join(processedDir, file));
+  } catch (err: any) {
+    console.error(`[sync-daemon] ❌ Error processing bookmarks [${file}]: ${err.message}`);
+  }
+}
+
+/**
  * Scan a single registered data source directory
  */
 function scanSource(source: { id: number; name: string; path: string; type: string }) {
@@ -620,6 +683,9 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
       processedCount++;
     } else if (file.endsWith(".json") && source.type === "chat_export") {
       processChatExport(filePath, file, processedDir);
+      processedCount++;
+    } else if (file.endsWith(".html") && source.type === "bookmarks") {
+      processBookmarks(filePath, file, processedDir);
       processedCount++;
     }
   }
