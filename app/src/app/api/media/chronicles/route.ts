@@ -14,6 +14,42 @@ function getMediaDB(): Database.Database {
   }
   const db = new Database(MEDIA_DB_PATH);
   db.pragma("journal_mode = WAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS media (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL UNIQUE,
+      filename TEXT,
+      type TEXT,
+      sizeBytes INTEGER,
+      camera TEXT,
+      city TEXT,
+      dateCreated TEXT,
+      favorite INTEGER DEFAULT 0,
+      category TEXT,
+      volume TEXT,
+      youtubeStatus TEXT,
+      unorganized INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS media_faces (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      media_id INTEGER,
+      name TEXT,
+      FOREIGN KEY(media_id) REFERENCES media(id)
+    );
+    CREATE TABLE IF NOT EXISTS virtual_albums (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      criteria_json TEXT
+    );
+    CREATE TABLE IF NOT EXISTS virtual_album_media (
+      album_id INTEGER,
+      media_id INTEGER,
+      PRIMARY KEY(album_id, media_id),
+      FOREIGN KEY(album_id) REFERENCES virtual_albums(id),
+      FOREIGN KEY(media_id) REFERENCES media(id)
+    );
+  `);
   return db;
 }
 
