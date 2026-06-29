@@ -5,8 +5,9 @@
 
 import { NextResponse } from "next/server";
 import { getDB } from "@/lib/db";
-import { buildContextChunks, retrieveChunks } from "@/lib/rag";
+import { buildContextChunks, retrieveChunksHybrid } from "@/lib/rag";
 import { executeChat, ChatMessage } from "@/lib/ai";
+import { searchMemory, addMemory, formatMemoriesForPrompt } from "@/lib/mem0";
 
 const SYSTEM_PROMPT = `You are Rudder AI, the intelligence layer of a sovereign personal operating system. You answer questions using ONLY the context provided below. If the context doesn't contain enough information to fully answer, say so honestly.
 
@@ -31,9 +32,13 @@ export async function POST(request: Request) {
     const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
     const mode = prefs?.default_execution_mode || "local_ollama";
 
-    // Build context
+    // Build context (hybrid semantic + keyword retrieval) and recall memories
     const allChunks = buildContextChunks();
-    const relevant = retrieveChunks(allChunks, question, 15);
+    const [relevant, memHits] = await Promise.all([
+      retrieveChunksHybrid(allChunks, question, 15),
+      searchMemory(question),
+    ]);
+    const memoryStr = formatMemoriesForPrompt(memHits);
 
     if (relevant.length === 0) {
       return NextResponse.json({
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
       .join("\n\n");
 
     const messages: ChatMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: memoryStr ? `${SYSTEM_PROMPT}\n\n${memoryStr}` : SYSTEM_PROMPT },
       {
         role: "user",
         content: `Context from sovereign data (${relevant.length} relevant records found from ${allChunks.length} total):\n\n${contextStr}\n\n---\n\nQuestion: ${question}`,
@@ -59,6 +64,11 @@ export async function POST(request: Request) {
     let answer = "";
     try {
       answer = await executeChat(messages, mode);
+      // Capture durable memories from this exchange (non-blocking).
+      void addMemory([
+        { role: "user", content: question },
+        { role: "assistant", content: answer },
+      ]);
     } catch (modelError: any) {
       return NextResponse.json({
         answer: `⚠️ AI Request Failed [${mode}]: ${modelError.message}`,

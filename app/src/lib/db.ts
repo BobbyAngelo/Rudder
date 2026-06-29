@@ -198,6 +198,7 @@ const MIGRATIONS: Migration[] = [
         relationship TEXT NOT NULL DEFAULT '',    -- friend, colleague, family, client, etc.
         notes TEXT NOT NULL DEFAULT '',
         last_contact TEXT,                        -- ISO date of last interaction
+        warmth REAL DEFAULT 0.5,                  -- contact warmth index (0.0 to 1.0)
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -308,6 +309,12 @@ const MIGRATIONS: Migration[] = [
         enabled_modules TEXT NOT NULL DEFAULT '["identity","writing"]',
         dashboard_layout TEXT NOT NULL DEFAULT 'default',
         onboarding_completed INTEGER NOT NULL DEFAULT 0,
+        tts_provider TEXT NOT NULL DEFAULT 'native',
+        tts_endpoint TEXT,
+        tts_ref_audio TEXT,
+        tts_ref_text TEXT,
+        comfy_endpoint TEXT,
+        avatar_portrait_path TEXT,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
@@ -853,11 +860,11 @@ const MIGRATIONS: Migration[] = [
       VALUES (
         'robert@sovereign.com',
         'casey@celfstudio.com',
-        'Next steps for SLAB Pocket prototype assembly',
-        'Casey, I ordered the remaining INMP441 microphones and PCM5102A DAC breakout boards for the SLAB Pocket audio hardware prototype. Let''s plan to meet on Thursday afternoon to assemble the first prototype shell and solder the MCUs.',
+        'Next steps for external capture device prototype assembly',
+        'Casey, I ordered the remaining INMP441 microphones and PCM5102A DAC breakout boards for the external audio hardware prototype. Let''s plan to meet on Thursday afternoon to assemble the first prototype shell and solder the MCUs.',
         'email',
         'outgoing',
-        'Sent details to Casey about SLAB Pocket parts arrival. Scheduled assembly session on Thursday afternoon.',
+        'Sent details to Casey about hardware parts arrival. Scheduled assembly session on Thursday afternoon.',
         datetime('now', '-1 day')
       );
 
@@ -970,8 +977,49 @@ const MIGRATIONS: Migration[] = [
       INSERT OR IGNORE INTO harness_sources (harness_id, source_type, source_target_id, sort_order) 
       VALUES (3, 'doing_about_me', (SELECT id FROM journal_entries WHERE title = 'About Me' AND is_folder = 1), 2);
 
-      INSERT OR IGNORE INTO harness_sources (harness_id, source_type, source_target_id, sort_order) 
+      INSERT OR IGNORE INTO harness_sources (harness_id, source_type, source_target_id, sort_order)
       VALUES (3, 'doing_frameworks', (SELECT id FROM journal_entries WHERE title = 'Frameworks' AND is_folder = 1), 3);
+    `,
+  },
+  {
+    name: "029_chunk_embeddings",
+    sql: `
+      -- ── Semantic Retrieval: Persistent embedding cache ──
+      -- Stores one vector per RAG chunk, keyed by a stable hash of its
+      -- content so chunks are only re-embedded when their text changes.
+      -- This replaces the previous behavior of rebuilding ~1,500 chunks
+      -- with no vectors on every request.
+      CREATE TABLE IF NOT EXISTS chunk_embeddings (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_hash TEXT NOT NULL UNIQUE,   -- sha256 of source+title+content
+        source       TEXT NOT NULL,          -- 'people', 'career', 'health', ...
+        title        TEXT NOT NULL DEFAULT '',
+        content      TEXT NOT NULL DEFAULT '',
+        model        TEXT NOT NULL,          -- embedding model used (e.g. nomic-embed-text)
+        dim          INTEGER NOT NULL,       -- vector dimensionality
+        vector       BLOB NOT NULL,          -- Float32Array bytes
+        updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_source ON chunk_embeddings(source);
+      CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_model  ON chunk_embeddings(model);
+    `,
+  },
+  {
+    name: "030_voice_avatar_preferences",
+    sql: `
+      ALTER TABLE user_preferences ADD COLUMN tts_provider TEXT NOT NULL DEFAULT 'native';
+      ALTER TABLE user_preferences ADD COLUMN tts_endpoint TEXT;
+      ALTER TABLE user_preferences ADD COLUMN tts_ref_audio TEXT;
+      ALTER TABLE user_preferences ADD COLUMN tts_ref_text TEXT;
+      ALTER TABLE user_preferences ADD COLUMN comfy_endpoint TEXT;
+      ALTER TABLE user_preferences ADD COLUMN avatar_portrait_path TEXT;
+    `,
+  },
+  {
+    name: "031_people_warmth",
+    sql: `
+      ALTER TABLE people ADD COLUMN warmth REAL DEFAULT 0.5;
     `,
   },
 ];

@@ -33,6 +33,17 @@ Rudder supports a dual AI pipeline:
 
 Set `LOCAL_LLM_URL` and optionally `GEMINI_API_KEY` in your `.env.local`.
 
+On top of inference, Rudder has two intelligence layers (both local-first, both optional):
+
+- **Semantic retrieval** — hybrid embedding + keyword RAG over your data, with embeddings persisted in SQLite.
+- **Long-term memory (Mem0)** — learns facts and preferences from conversations, backed by a local Qdrant vector store.
+
+See [`docs/memory-and-retrieval.md`](docs/memory-and-retrieval.md) for setup (Qdrant, embedding model) and configuration.
+
+### Knowledge Export (OKF)
+
+Rudder can export your knowledge as an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf) bundle - portable, cross-linked markdown that any other agent or tool can consume. Available from Settings, the `/api/export/okf` endpoint, or `npm run export:okf`. See [`docs/okf-export.md`](docs/okf-export.md). (People and Health data are excluded by design.)
+
 ## Data Ingestion
 
 Rudder allows you to ingest personal data archives locally. For step - by - step instructions on how to export your own files from Apple Health, Google/Apple Calendar, Google/Apple Contacts, LinkedIn, Outlook, and chat logs (ChatGPT/Claude), refer to the [Data Export Mini-Guides](docs/export-guides.md).

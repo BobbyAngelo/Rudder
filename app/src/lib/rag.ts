@@ -7,6 +7,7 @@ import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import Database from "better-sqlite3";
 import { getDB } from "./db";
+import { collectImportedOKFChunks } from "./okf-import";
 
 const DATA_DIR = join(process.cwd(), "..", "data");
 
@@ -92,6 +93,38 @@ export function buildContextChunks(): Chunk[] {
           source: "ledger",
           title,
           content: content.trim(),
+        });
+      }
+    } catch { /* */ }
+
+    // 1e. Health Records (from main db)
+    try {
+      const records = db.prepare(`
+        SELECT type, COUNT(*) as count, 
+               ROUND(AVG(CAST(value AS REAL)), 1) as avg_val,
+               MIN(date) as first, MAX(date) as last
+        FROM health_records 
+        GROUP BY type 
+        ORDER BY count DESC 
+        LIMIT 20
+      `).all() as any[];
+      for (const r of records) {
+        chunks.push({
+          source: "health",
+          title: `Health Record: ${r.type}`,
+          content: `Health record "${r.type}": ${r.count} entries found. Average value: ${r.avg_val}. Range: ${r.first} to ${r.last}.`,
+        });
+      }
+    } catch { /* */ }
+
+    // 1f. Correspondence (emails, messages, slack)
+    try {
+      const messages = db.prepare("SELECT sender, recipient, subject, body, platform, direction, decision_log, date(created_at) as date FROM correspondence ORDER BY created_at DESC LIMIT 150").all() as any[];
+      for (const m of messages) {
+        chunks.push({
+          source: "correspondence",
+          title: m.subject || `Message from ${m.sender}`,
+          content: `Message (${m.platform}, ${m.direction}) on ${m.date}. From: ${m.sender}. To: ${m.recipient}. ${m.subject ? `Subject: ${m.subject}.` : ""} Body: ${m.body}. ${m.decision_log ? `Action Summary: ${m.decision_log}` : ""}`.trim(),
         });
       }
     } catch { /* */ }
@@ -220,6 +253,11 @@ export function buildContextChunks(): Chunk[] {
     }
   } catch { /* */ }
 
+  // 8b. Imported OKF bundles (external knowledge)
+  try {
+    for (const c of collectImportedOKFChunks(DATA_DIR)) chunks.push(c);
+  } catch { /* */ }
+
   // 9. Health summary (aggregate, not 352K rows)
   try {
     const healthDB = join(DATA_DIR, "health/health-ledger.sqlite");
@@ -282,4 +320,30 @@ export function retrieveChunks(chunks: Chunk[], query: string, topN: number = 15
     .sort((a, b) => b.score - a.score)
     .slice(0, topN)
     .map(s => s.chunk);
+}
+
+/**
+ * Hybrid retrieval (preferred): semantic similarity via the local
+ * Ollama embedder, with automatic fallback to keyword scoring when
+ * the embedder is offline or nothing has been embedded yet.
+ *
+ * Drop-in async replacement for `retrieveChunks` in API routes.
+ */
+export async function retrieveChunksHybrid(
+  chunks: Chunk[],
+  query: string,
+  topN: number = 15
+): Promise<Chunk[]> {
+  try {
+    // Imported lazily so keyword-only callers never pull in the
+    // embeddings/sqlite path unnecessarily.
+    const { retrieveSemanticFromChunks } = await import("./embeddings");
+    const semantic = await retrieveSemanticFromChunks(chunks, query, topN);
+    if (semantic.length > 0) {
+      return semantic.map(({ source, title, content }) => ({ source, title, content }));
+    }
+  } catch {
+    /* fall through to keyword retrieval */
+  }
+  return retrieveChunks(chunks, query, topN);
 }

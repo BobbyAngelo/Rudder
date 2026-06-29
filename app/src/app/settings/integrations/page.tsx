@@ -7,6 +7,7 @@ import {
   Upload, AlertCircle,
 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
+import OKFExportCard from "@/components/OKFExportCard";
 import Link from "next/link";
 
 const EXECUTION_MODES = [
@@ -188,6 +189,9 @@ export default function IntegrationsPage() {
             </CardBody>
           </Card>
         </section>
+
+        {/* ── Knowledge Export (OKF) ── */}
+        <OKFExportCard />
 
         {/* ── Local Data Sources ── */}
         <section className="space-y-4">

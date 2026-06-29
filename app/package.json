@@ -7,7 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/rag.test.ts"
+    "test": "node --import tsx --test src/lib/rag.test.ts src/lib/db.test.ts",
+    "export:okf": "node --import tsx ../scripts/export-okf.ts",
+    "import:okf": "node --import tsx ../scripts/import-okf.ts",
+    "sync": "node --import tsx src/lib/sync-daemon.ts",
+    "correlation": "node --import tsx src/lib/correlation-daemon.ts",
+    "voice": "node --import tsx src/lib/voice-navigator.ts",
+    "swarm": "node --import tsx src/lib/agent-swarm.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -16,6 +22,7 @@
     "better-sqlite3": "^12.10.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.16.0",
+    "mem0ai": "^3.0.10",
     "next": "16.2.6",
     "openai": "^6.38.0",
     "react": "19.2.4",

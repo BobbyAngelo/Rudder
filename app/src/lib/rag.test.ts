@@ -10,7 +10,7 @@ const mockChunks: Chunk[] = [
   },
   {
     source: "tasks",
-    title: "Assemble SLAB Pocket shell",
+    title: "Assemble external hardware shell",
     content: "Solder the MCUs and assemble the prototype shell.",
   },
   {

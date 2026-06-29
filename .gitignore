@@ -26,3 +26,7 @@ scratch/
 .DS_Store
 *.log
 .venv/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

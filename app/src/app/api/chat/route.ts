@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { buildContextChunks, retrieveChunks } from "@/lib/rag";
+import { buildContextChunks, retrieveChunksHybrid } from "@/lib/rag";
 import { ollamaChat, ollamaStatus } from "@/lib/ollama";
 import { condenseHistory } from "@/lib/ai";
+import { searchMemory, addMemory, formatMemoriesForPrompt } from "@/lib/mem0";
 
 export async function POST(req: Request) {
   try {
@@ -30,10 +31,13 @@ export async function POST(req: Request) {
       }, { status: 503 });
     }
 
-    // 2. Build RAG Context
+    // 2. Build RAG Context (hybrid semantic + keyword retrieval)
     const chunks = buildContextChunks();
-    const relevant = retrieveChunks(chunks, query, 10);
-    
+    const [relevant, memHits] = await Promise.all([
+      retrieveChunksHybrid(chunks, query, 10),
+      searchMemory(query),
+    ]);
+
     let contextStr = "";
     if (relevant.length > 0) {
       contextStr = relevant.map(c => `[Source: ${c.source}] ${c.title}\n${c.content}`).join("\n\n");
@@ -41,12 +45,15 @@ export async function POST(req: Request) {
       contextStr = "No specifically matching sovereign data found for this query.";
     }
 
+    // 2b. Recalled long-term memories (Mem0)
+    const memoryStr = formatMemoriesForPrompt(memHits);
+
     // 3. Build Prompt
     const systemPrompt = `You are Rudder, the Sovereign AI assistant for Sovereign User.
-Your job is to answer questions using ONLY the provided context from his life, career, hardware projects, and health ledger. 
+Your job is to answer questions using ONLY the provided context from his life, career, hardware projects, and health ledger.
 If the context does not contain the answer, say "I don't have that in your sovereign ledger."
 Do not hallucinate external information. Keep your answers concise, direct, and actionable.
-
+${memoryStr ? `\n${memoryStr}\n` : ""}
 Here is the retrieved context:
 ---------------------
 ${contextStr}
@@ -71,7 +78,14 @@ ${contextStr}
     // 5. Inference
     const responseText = await ollamaChat(optimizedMessages, "llama3.2:latest");
 
-    return NextResponse.json({ 
+    // 6. Capture durable memories from this exchange (fire-and-forget,
+    //    never blocks or fails the response).
+    void addMemory([
+      { role: "user", content: query },
+      { role: "assistant", content: responseText },
+    ]);
+
+    return NextResponse.json({
       text: responseText,
       contextUsed: relevant.length,
       model: "llama3.2:latest",

@@ -9,6 +9,7 @@ import { WidgetHealth } from "./WidgetHealth";
 import { WidgetHarness } from "./WidgetHarness";
 import { WidgetSwarm } from "./WidgetSwarm";
 import { WidgetCorrespondence } from "./WidgetCorrespondence";
+import { WidgetIntranetStatus } from "./WidgetIntranetStatus";
 
 export interface WidgetConfig {
   id: string;
@@ -28,4 +29,5 @@ export const WIDGET_REGISTRY: WidgetConfig[] = [
   { id: "harness", label: "Context Harnesses", desc: "Sovereign context bundles for LLMs & swarms", component: WidgetHarness },
   { id: "swarm", label: "Sovereign Swarm", desc: "Multi-agent persona writing console", component: WidgetSwarm },
   { id: "correspondence", label: "Inbox & Correspondence", desc: "Automated decision ledger and voice-matched drafts", component: WidgetCorrespondence },
+  { id: "intranet_status", label: "Intranet & Swarm", desc: "Local Ollama state, system load, and folder watchers status", component: WidgetIntranetStatus },
 ];
