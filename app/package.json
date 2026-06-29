@@ -27,7 +27,10 @@
     "openai": "^6.38.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-force-graph-2d": "^1.29.1"
+    "react-force-graph-2d": "^1.29.1",
+    "imapflow": "^1.0.158",
+    "nodemailer": "^6.9.13",
+    "mailparser": "^3.6.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -36,6 +39,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/nodemailer": "^6.4.15",
+    "@types/mailparser": "^3.4.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",

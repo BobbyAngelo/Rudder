@@ -24,6 +24,8 @@ export function WidgetCorrespondence() {
   const [generatingId, setGeneratingId] = useState<number | null>(null);
   const [generatedDraft, setGeneratedDraft] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+  const [sentStatus, setSentStatus] = useState<string | null>(null);
 
   const fetchMessages = () => {
     setLoading(true);
@@ -78,6 +80,31 @@ export function WidgetCorrespondence() {
     navigator.clipboard.writeText(generatedDraft);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSendMail = async (id: number) => {
+    setSendingId(id);
+    setSentStatus(null);
+    try {
+      const res = await fetch("/api/correspondence/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correspondenceId: id, replyBody: generatedDraft })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSentStatus("✅ Reply sent via SMTP!");
+        setGeneratedDraft("");
+        fetchMessages();
+      } else {
+        setSentStatus(`❌ Error: ${data.error}`);
+      }
+    } catch {
+      setSentStatus("❌ Network error connecting to mail gateway.");
+    } finally {
+      setSendingId(null);
+      setTimeout(() => setSentStatus(null), 5000);
+    }
   };
 
   const getPlatformColor = (platform: string) => {
@@ -234,17 +261,56 @@ export function WidgetCorrespondence() {
                         </div>
 
                         {generatedDraft && (
-                          <div className="relative rounded-lg p-2.5 border" style={{ background: "var(--color-background)", borderColor: "var(--color-border)" }}>
-                            <p className="text-xs font-serif leading-relaxed pr-8 whitespace-pre-wrap" style={{ color: "var(--color-text-primary)" }}>
-                              {generatedDraft}
-                            </p>
-                            <button
-                              onClick={handleCopy}
-                              className="absolute top-2 right-2 p-1.5 rounded transition-all hover:bg-neutral-800"
-                              style={{ color: copied ? "#10b981" : "var(--color-text-dim)" }}
-                            >
-                              {copied ? <Check size={11} /> : <Copy size={11} />}
-                            </button>
+                          <div className="space-y-2">
+                            <div className="relative rounded-lg p-2.5 border" style={{ background: "var(--color-background)", borderColor: "var(--color-border)" }}>
+                              <textarea
+                                value={generatedDraft}
+                                onChange={(e) => setGeneratedDraft(e.target.value)}
+                                className="w-full text-xs font-serif leading-relaxed pr-8 bg-transparent border-none resize-none focus:outline-none min-h-[90px]"
+                                style={{ color: "var(--color-text-primary)" }}
+                              />
+                              <button
+                                onClick={handleCopy}
+                                className="absolute top-2 right-2 p-1.5 rounded transition-all hover:bg-neutral-800"
+                                style={{ color: copied ? "#10b981" : "var(--color-text-dim)" }}
+                              >
+                                {copied ? <Check size={11} /> : <Copy size={11} />}
+                              </button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              {sentStatus ? (
+                                <span className="text-[10px] font-medium animate-pulse" style={{ color: sentStatus.includes("✅") ? "var(--color-accent)" : "#f87171" }}>
+                                  {sentStatus}
+                                </span>
+                              ) : (
+                                <div />
+                              )}
+
+                              {msg.platform.toLowerCase() === "email" && (
+                                <button
+                                  onClick={() => handleSendMail(msg.id)}
+                                  disabled={sendingId !== null}
+                                  className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40"
+                                  style={{
+                                    background: "var(--color-accent)",
+                                    color: "#000",
+                                  }}
+                                >
+                                  {sendingId === msg.id ? (
+                                    <>
+                                      <RefreshCw size={10} className="animate-spin" />
+                                      Sending...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send size={10} />
+                                      Send Email
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

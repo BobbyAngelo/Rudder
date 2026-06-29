@@ -315,6 +315,15 @@ const MIGRATIONS: Migration[] = [
         tts_ref_text TEXT,
         comfy_endpoint TEXT,
         avatar_portrait_path TEXT,
+        imap_host TEXT,
+        imap_port INTEGER,
+        imap_user TEXT,
+        imap_pass TEXT,
+        smtp_host TEXT,
+        smtp_port INTEGER,
+        smtp_user TEXT,
+        smtp_pass TEXT,
+        inbox_sync_enabled INTEGER DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
@@ -819,6 +828,7 @@ const MIGRATIONS: Migration[] = [
         platform TEXT NOT NULL,                  -- email, slack, imessage, linkedin
         direction TEXT NOT NULL,                 -- incoming, outgoing
         decision_log TEXT,                       -- AI-extracted summary/action items
+        message_id TEXT UNIQUE,                  -- Unique ID to prevent duplicates (e.g. email Message-ID)
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -1020,6 +1030,27 @@ const MIGRATIONS: Migration[] = [
     name: "031_people_warmth",
     sql: `
       ALTER TABLE people ADD COLUMN warmth REAL DEFAULT 0.5;
+    `,
+  },
+  {
+    name: "032_sovereign_inbox_settings",
+    sql: `
+      ALTER TABLE user_preferences ADD COLUMN imap_host TEXT;
+      ALTER TABLE user_preferences ADD COLUMN imap_port INTEGER;
+      ALTER TABLE user_preferences ADD COLUMN imap_user TEXT;
+      ALTER TABLE user_preferences ADD COLUMN imap_pass TEXT;
+      ALTER TABLE user_preferences ADD COLUMN smtp_host TEXT;
+      ALTER TABLE user_preferences ADD COLUMN smtp_port INTEGER;
+      ALTER TABLE user_preferences ADD COLUMN smtp_user TEXT;
+      ALTER TABLE user_preferences ADD COLUMN smtp_pass TEXT;
+      ALTER TABLE user_preferences ADD COLUMN inbox_sync_enabled INTEGER DEFAULT 0;
+    `,
+  },
+  {
+    name: "033_correspondence_message_id",
+    sql: `
+      ALTER TABLE correspondence ADD COLUMN message_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_correspondence_message_id ON correspondence(message_id);
     `,
   },
 ];

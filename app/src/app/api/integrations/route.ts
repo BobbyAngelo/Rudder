@@ -16,7 +16,15 @@ export async function GET() {
     }));
     
     // Get Execution Preferences
-    const prefs = db.prepare("SELECT default_execution_mode, fallback_execution_mode FROM user_preferences WHERE id = 1").get();
+    const prefs = db.prepare(`
+      SELECT 
+        default_execution_mode, fallback_execution_mode, 
+        imap_host, imap_port, imap_user, imap_pass, 
+        smtp_host, smtp_port, smtp_user, smtp_pass, 
+        inbox_sync_enabled 
+      FROM user_preferences 
+      WHERE id = 1
+    `).get();
 
     return NextResponse.json({
       data_sources: sources,
@@ -71,18 +79,35 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const db = getDB();
 
-    // Update execution routing preferences
-    if (body.default_execution_mode || body.fallback_execution_mode) {
+    // Update execution and email preferences
+    if (
+      body.default_execution_mode !== undefined ||
+      body.fallback_execution_mode !== undefined ||
+      body.imap_host !== undefined ||
+      body.imap_port !== undefined ||
+      body.imap_user !== undefined ||
+      body.imap_pass !== undefined ||
+      body.smtp_host !== undefined ||
+      body.smtp_port !== undefined ||
+      body.smtp_user !== undefined ||
+      body.smtp_pass !== undefined ||
+      body.inbox_sync_enabled !== undefined
+    ) {
       const updates: string[] = [];
       const params: any = {};
 
-      if (body.default_execution_mode) {
-        updates.push("default_execution_mode = @default_execution_mode");
-        params.default_execution_mode = body.default_execution_mode;
-      }
-      if (body.fallback_execution_mode) {
-        updates.push("fallback_execution_mode = @fallback_execution_mode");
-        params.fallback_execution_mode = body.fallback_execution_mode;
+      const fields = [
+        "default_execution_mode", "fallback_execution_mode",
+        "imap_host", "imap_port", "imap_user", "imap_pass",
+        "smtp_host", "smtp_port", "smtp_user", "smtp_pass",
+        "inbox_sync_enabled"
+      ];
+
+      for (const field of fields) {
+        if (body[field] !== undefined) {
+          updates.push(`${field} = @${field}`);
+          params[field] = body[field];
+        }
       }
 
       db.prepare(`UPDATE user_preferences SET ${updates.join(", ")} WHERE id = 1`).run(params);

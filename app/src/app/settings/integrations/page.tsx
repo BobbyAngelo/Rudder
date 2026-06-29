@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   HardDrive, Server, Cpu, Plus, Settings, CheckCircle2, ChevronLeft,
   X, Trash2, FolderOpen, Terminal, ChevronDown, Camera, RefreshCw,
-  Upload, AlertCircle,
+  Upload, AlertCircle, Mail,
 } from "lucide-react";
 import { Card, CardBody } from "@/components/ui";
 import OKFExportCard from "@/components/OKFExportCard";
@@ -33,6 +33,17 @@ export default function IntegrationsPage() {
   const [showAddSource, setShowAddSource] = useState(false);
   const [showAddMcp, setShowAddMcp] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+
+  // Sovereign Mail State
+  const [imapHost, setImapHost] = useState("");
+  const [imapPort, setImapPort] = useState(993);
+  const [imapUser, setImapUser] = useState("");
+  const [imapPass, setImapPass] = useState("");
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [inboxSyncEnabled, setInboxSyncEnabled] = useState(false);
 
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{
@@ -127,9 +138,30 @@ export default function IntegrationsPage() {
         setDataSources(data.data_sources || []);
         setMcpServers(data.mcp_servers || []);
         setExecutionMode(data.execution);
+
+        // Load mail settings
+        setImapHost(data.execution?.imap_host || "");
+        setImapPort(data.execution?.imap_port || 993);
+        setImapUser(data.execution?.imap_user || "");
+        setImapPass(data.execution?.imap_pass || "");
+        setSmtpHost(data.execution?.smtp_host || "");
+        setSmtpPort(data.execution?.smtp_port || 587);
+        setSmtpUser(data.execution?.smtp_user || "");
+        setSmtpPass(data.execution?.smtp_pass || "");
+        setInboxSyncEnabled(!!data.execution?.inbox_sync_enabled);
+
         setIsLoading(false);
       });
   }, []);
+
+  async function updateMailSettings(updates: any) {
+    await fetch("/api/integrations", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    refresh();
+  }
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -192,6 +224,144 @@ export default function IntegrationsPage() {
 
         {/* ── Knowledge Export (OKF) ── */}
         <OKFExportCard />
+
+        {/* ── Sovereign Mail (IMAP/SMTP) ── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <Mail size={18} className="text-blue-400" />
+              <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Sovereign Mail</h2>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={inboxSyncEnabled}
+                onChange={(e) => {
+                  const val = e.target.checked ? 1 : 0;
+                  setInboxSyncEnabled(e.target.checked);
+                  updateMailSettings({ inbox_sync_enabled: val });
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-zinc-850 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-400 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--color-accent)] peer-checked:after:bg-black peer-checked:after:border-black"></div>
+              <span className="ml-2 text-xs font-medium text-[var(--color-text-muted)]">
+                {inboxSyncEnabled ? "Sync Enabled" : "Sync Disabled"}
+              </span>
+            </label>
+          </div>
+
+          <Card hover={false}>
+            <CardBody className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* IMAP Section */}
+                <div className="space-y-3">
+                  <div className="text-[12px] font-semibold uppercase tracking-wider text-blue-400">IMAP (Incoming)</div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">IMAP Host</label>
+                    <input
+                      type="text"
+                      value={imapHost}
+                      onChange={(e) => setImapHost(e.target.value)}
+                      onBlur={() => updateMailSettings({ imap_host: imapHost })}
+                      placeholder="imap.fastmail.com"
+                      className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-1 space-y-1">
+                      <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Port</label>
+                      <input
+                        type="number"
+                        value={imapPort}
+                        onChange={(e) => setImapPort(parseInt(e.target.value, 10) || 993)}
+                        onBlur={() => updateMailSettings({ imap_port: imapPort })}
+                        className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">IMAP User</label>
+                      <input
+                        type="text"
+                        value={imapUser}
+                        onChange={(e) => setImapUser(e.target.value)}
+                        onBlur={() => updateMailSettings({ imap_user: imapUser })}
+                        placeholder="you@fastmail.com"
+                        className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">IMAP Password</label>
+                    <input
+                      type="password"
+                      value={imapPass}
+                      onChange={(e) => setImapPass(e.target.value)}
+                      onBlur={() => updateMailSettings({ imap_pass: imapPass })}
+                      placeholder="••••••••••••••••"
+                      className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* SMTP Section */}
+                <div className="space-y-3">
+                  <div className="text-[12px] font-semibold uppercase tracking-wider text-emerald-400">SMTP (Outgoing)</div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">SMTP Host</label>
+                    <input
+                      type="text"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      onBlur={() => updateMailSettings({ smtp_host: smtpHost })}
+                      placeholder="smtp.fastmail.com"
+                      className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-1 space-y-1">
+                      <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Port</label>
+                      <input
+                        type="number"
+                        value={smtpPort}
+                        onChange={(e) => setSmtpPort(parseInt(e.target.value, 10) || 587)}
+                        onBlur={() => updateMailSettings({ smtp_port: smtpPort })}
+                        className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">SMTP User</label>
+                      <input
+                        type="text"
+                        value={smtpUser}
+                        onChange={(e) => setSmtpUser(e.target.value)}
+                        onBlur={() => updateMailSettings({ smtp_user: smtpUser })}
+                        placeholder="you@fastmail.com"
+                        className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">SMTP Password</label>
+                    <input
+                      type="password"
+                      value={smtpPass}
+                      onChange={(e) => setSmtpPass(e.target.value)}
+                      onBlur={() => updateMailSettings({ smtp_pass: smtpPass })}
+                      placeholder="••••••••••••••••"
+                      className="w-full bg-[var(--color-background-elevated)] border border-[var(--color-border-subtle)] px-3 py-2 rounded-lg text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+        </section>
 
         {/* ── Local Data Sources ── */}
         <section className="space-y-4">

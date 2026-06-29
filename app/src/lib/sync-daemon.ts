@@ -2,6 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { getDB } from "./db";
 import * as crypto from "crypto";
+import { ImapFlow } from "imapflow";
+import { simpleParser } from "mailparser";
 
 /* ═══════════════════════════════════════════════════════
    Sync Daemon — Dynamic Folder Watcher and Parser
@@ -628,6 +630,91 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
 }
 
 /**
+ * Connects to IMAP server and syncs the last 20 emails
+ */
+async function syncImapInbox() {
+  const db = getDB();
+  let prefs: any = null;
+  try {
+    prefs = db.prepare("SELECT imap_host, imap_port, imap_user, imap_pass, inbox_sync_enabled FROM user_preferences WHERE id = 1").get();
+  } catch (e: any) {
+    return;
+  }
+
+  if (!prefs || !prefs.inbox_sync_enabled || !prefs.imap_host || !prefs.imap_user || !prefs.imap_pass) {
+    return;
+  }
+
+  console.log(`[sync-daemon] Starting IMAP sync for ${prefs.imap_user} at ${prefs.imap_host}...`);
+
+  const client = new ImapFlow({
+    host: prefs.imap_host,
+    port: prefs.imap_port || 993,
+    secure: true,
+    auth: {
+      user: prefs.imap_user,
+      pass: prefs.imap_pass,
+    },
+    logger: false
+  });
+
+  try {
+    await client.connect();
+    
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const status = await client.status("INBOX", { messages: true });
+      const totalMessages = status.messages || 0;
+      if (totalMessages === 0) {
+        console.log("[sync-daemon] IMAP Inbox is empty.");
+        return;
+      }
+
+      const startRange = Math.max(1, totalMessages - 19);
+      const endRange = totalMessages;
+      const range = `${startRange}:${endRange}`;
+
+      for await (const msg of client.fetch(range, { envelope: true, source: true })) {
+        const messageId = msg.envelope?.messageId || `imap_${msg.uid}_${msg.envelope?.date?.getTime() || Date.now()}`;
+        
+        const exists = db.prepare("SELECT id FROM correspondence WHERE message_id = ?").get(messageId);
+        if (exists) continue;
+
+        const sender = msg.envelope?.from?.[0]?.address || "unknown@imap.com";
+        const recipient = msg.envelope?.to?.[0]?.address || prefs.imap_user;
+        const subject = msg.envelope?.subject || "(No Subject)";
+        const createdAt = msg.envelope?.date?.toISOString() || new Date().toISOString();
+        
+        let body = "";
+        try {
+          if (msg.source) {
+            const parsed = await simpleParser(msg.source);
+            body = parsed.text || parsed.html || "";
+          } else {
+            body = `[Empty IMAP Message Uid: ${msg.uid}] Subject: ${subject}`;
+          }
+        } catch {
+          body = `[Raw IMAP Message Uid: ${msg.uid}] Subject: ${subject}`;
+        }
+
+        db.prepare(`
+          INSERT INTO correspondence (sender, recipient, subject, body, platform, direction, message_id, created_at)
+          VALUES (?, ?, ?, ?, 'email', 'incoming', ?, ?)
+        `).run(sender, recipient, subject, body, messageId, createdAt);
+
+        console.log(`[sync-daemon] ✅ Synced email from IMAP: ${sender} - "${subject}"`);
+      }
+    } finally {
+      lock.release();
+    }
+    
+    await client.logout();
+  } catch (err: any) {
+    console.error(`[sync-daemon] ❌ IMAP sync failed: ${err.message}`);
+  }
+}
+
+/**
  * Main polling tick function
  */
 function tick() {
@@ -638,6 +725,11 @@ function tick() {
     for (const source of activeSources) {
       scanSource(source);
     }
+
+    // Trigger IMAP Sync in background
+    syncImapInbox().catch((err: any) => {
+      console.error(`[sync-daemon] IMAP background sync error: ${err.message}`);
+    });
   } catch (err: any) {
     console.error(`[sync-daemon] Sync daemon error in loop: ${err.message}`);
   }
