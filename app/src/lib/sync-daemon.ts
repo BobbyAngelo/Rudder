@@ -6,6 +6,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { parseBookmarks } from "./ingest/bookmarks";
 import { parseTasksBackup } from "./ingest/tasks-backup";
+import { readReadLaterFile } from "./ingest/read-later";
 
 /* ═══════════════════════════════════════════════════════
    Sync Daemon — Dynamic Folder Watcher and Parser
@@ -20,9 +21,10 @@ const CORRESPONDENCE_DIR = path.join(SYNC_DIR, "correspondence");
 const CHAT_DIR = path.join(SYNC_DIR, "chat");
 const BOOKMARKS_DIR = path.join(SYNC_DIR, "bookmarks");
 const TASKS_DIR = path.join(SYNC_DIR, "tasks");
+const READ_LATER_DIR = path.join(SYNC_DIR, "read-later");
 
 // Ensure default sync directories exist
-[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR, BOOKMARKS_DIR, TASKS_DIR].forEach((dir) => {
+[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR, BOOKMARKS_DIR, TASKS_DIR, READ_LATER_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`[sync-daemon] Created directory: ${dir}`);
@@ -69,6 +71,11 @@ try {
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('Generic Tasks Backup', ?, 'tasks_backup', 'active')
     `).run(TASKS_DIR);
+
+    db.prepare(`
+      INSERT OR IGNORE INTO data_sources (name, path, type, status)
+      VALUES ('Read-Later Backups', ?, 'read_later', 'active')
+    `).run(READ_LATER_DIR);
     
     console.log("[sync-daemon] Seeded default data sources in database.");
   }
@@ -639,10 +646,70 @@ function processBookmarks(filePath: string, file: string, processedDir: string) 
       }
     })();
 
-    console.log(`[sync-daemon] ✅ Ingested bookmarks export: ${file}. Ingested: ${inserted}, Skipped: ${skipped}`);
-    fs.renameSync(filePath, path.join(processedDir, file));
+    // Move file to processed directory
+    const dest = path.join(processedDir, file);
+    fs.renameSync(filePath, dest);
+    console.log(`[sync-daemon] ✅ Bookmarks sync complete. Ingested: ${inserted}, Skipped: ${skipped}`);
   } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing bookmarks [${file}]: ${err.message}`);
+    console.error(`[sync-daemon] ❌ Error in bookmarks sync: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Ingest Pocket/Instapaper Read-Later export file
+ */
+function processReadLater(filePath: string, file: string, processedDir: string) {
+  try {
+    console.log(`[sync-daemon] Parsing read-later export: ${file}`);
+    const items = readReadLaterFile(filePath);
+
+    const checkStmt = db.prepare("SELECT event_id FROM reality_nodes WHERE event_id = ?");
+    const insertStmt = db.prepare(`
+      INSERT INTO reality_nodes (
+        event_id, when_timestamp, where_context, who_entities, what_classification, 
+        why_insight, how_actions, state_vitals, gravity_score, origin_provenance, raw_blob
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let inserted = 0;
+    let skipped = 0;
+
+    db.transaction(() => {
+      for (const item of items) {
+        const urlHash = crypto.createHash("sha256").update(item.url).digest("hex").slice(0, 16);
+        const eventId = `read-later-${urlHash}`;
+        const existing = checkStmt.get(eventId);
+
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        insertStmt.run(
+          eventId,
+          item.timestamp,
+          item.title, // where_context
+          "[]", // who_entities
+          "read-later", // what_classification
+          item.url, // why_insight (URL)
+          JSON.stringify(["read-later"]), // how_actions
+          JSON.stringify({ tags: item.tags }), // state_vitals
+          1, // gravity_score
+          item.source, // origin_provenance
+          JSON.stringify(item) // raw_blob
+        );
+        inserted++;
+      }
+    })();
+
+    // Move file to processed directory
+    const dest = path.join(processedDir, file);
+    fs.renameSync(filePath, dest);
+    console.log(`[sync-daemon] ✅ Read-Later sync complete. Ingested: ${inserted}, Skipped: ${skipped}`);
+  } catch (err: any) {
+    console.error(`[sync-daemon] ❌ Error in read-later sync: ${err.message}`);
+    throw err;
   }
 }
 
@@ -746,6 +813,9 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
         processedCount++;
       } else if (file.endsWith(".json") && source.type === "tasks_backup") {
         processTasksBackup(filePath, file, processedDir);
+        processedCount++;
+      } else if ((file.endsWith(".html") || file.endsWith(".csv")) && source.type === "read_later") {
+        processReadLater(filePath, file, processedDir);
         processedCount++;
       }
     }

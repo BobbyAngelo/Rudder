@@ -110,3 +110,18 @@ Google Chrome, Arc, Brave, and Microsoft Edge store history in a local SQLite fi
 3. Click **Next step**, select export options, and click **Create export**.
 4. Once ready, download and extract the archive to retrieve the `.json` task lists.
 
+---
+
+## 9. Read-Later Archives (Pocket / Instapaper)
+
+### Pocket
+1. Log in to your [Pocket](https://getpocket.com) account in a browser.
+2. Go to [Pocket Export page](https://getpocket.com/export).
+3. Click **Export HTML file** to download the `ril_export.html` file containing your saved articles.
+
+### Instapaper
+1. Log in to your [Instapaper](https://www.instapaper.com) account in a browser.
+2. Scroll to the bottom of the page and click **Settings**.
+3. Under the **Export** section, click **Download .CSV file** to save your bookmarks.
+
+
