@@ -93,3 +93,20 @@ Google Chrome, Arc, Brave, and Microsoft Edge store history in a local SQLite fi
 2. Select **Settings**.
 3. Under the **Account** tab, scroll down to the **Export Data** section.
 4. Click the export button to download a copy of your chat history.
+
+---
+
+## 8. Task Backups (Todoist / Google Tasks)
+
+### Todoist
+1. Log in to your [Todoist](https://todoist.com) account in a desktop browser.
+2. Click the gear settings icon in the top right corner and select **Settings**.
+3. Click on the **Backups** tab in the sidebar.
+4. Download the latest backup `.zip` and extract it to find the individual task `.json` files.
+
+### Google Tasks
+1. Go to [Google Takeout](https://takeout.google.com).
+2. Uncheck all services, scroll down, and check only **Tasks**.
+3. Click **Next step**, select export options, and click **Create export**.
+4. Once ready, download and extract the archive to retrieve the `.json` task lists.
+
