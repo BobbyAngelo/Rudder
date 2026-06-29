@@ -1053,6 +1053,24 @@ const MIGRATIONS: Migration[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_correspondence_message_id ON correspondence(message_id);
     `,
   },
+  {
+    name: "034_rebalance_proposals",
+    sql: `
+      CREATE TABLE IF NOT EXISTS rebalance_proposals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        task_id INTEGER NOT NULL,
+        original_date TEXT NOT NULL,
+        proposed_date TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY(task_id) REFERENCES tasks(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_rebalance_date ON rebalance_proposals(date);
+      CREATE INDEX IF NOT EXISTS idx_rebalance_status ON rebalance_proposals(status);
+    `,
+  },
 ];
 
 

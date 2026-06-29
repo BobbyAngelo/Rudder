@@ -267,6 +267,129 @@ async function runContactWarmthTracker() {
   }
 }
 
+async function runAutonomicRebalancer() {
+  console.log("[agent-swarm] Checking user biometrics for task rebalancing...");
+  const db = getDB();
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Seed default health metrics if empty for testing/demo
+  const healthCount = db.prepare("SELECT COUNT(*) as count FROM health_metrics").get() as { count: number };
+  if (healthCount.count === 0) {
+    db.prepare(`
+      INSERT INTO health_metrics (date, sleep_hours, resting_hr, hrv, steps, mood, energy)
+      VALUES (?, 5.2, 72, 35, 4500, 4, 3)
+    `).run(todayStr);
+    console.log("[agent-swarm] Seeded fatigued biometric log for today.");
+  }
+
+  const health = db.prepare(`
+    SELECT date, sleep_hours, hrv 
+    FROM health_metrics 
+    ORDER BY date DESC 
+    LIMIT 1
+  `).get() as any;
+
+  if (!health) {
+    return;
+  }
+
+  const isFatigued = (health.sleep_hours && health.sleep_hours < 6.0) || (health.hrv && health.hrv < 40);
+  if (!isFatigued) {
+    console.log(`[agent-swarm] Biometrics are optimal (Sleep: ${health.sleep_hours} hrs, HRV: ${health.hrv}). No rebalancing needed.`);
+    return;
+  }
+
+  console.log(`[agent-swarm] ⚠️ Fatigue detected: Sleep: ${health.sleep_hours} hrs, HRV: ${health.hrv}. Evaluation active...`);
+
+  // Check if proposals already exist for today
+  const existing = db.prepare("SELECT id FROM rebalance_proposals WHERE date = ?").get(todayStr);
+  if (existing) {
+    console.log(`[agent-swarm] Rebalance proposals already generated for today (${todayStr}).`);
+    return;
+  }
+
+  const todayTasks = db.prepare(`
+    SELECT id, title, description, priority 
+    FROM tasks 
+    WHERE status IN ('todo', 'in_progress') AND due_date = ?
+  `).all(todayStr) as any[];
+
+  if (todayTasks.length === 0) {
+    console.log(`[agent-swarm] No active tasks scheduled for today (${todayStr}).`);
+    return;
+  }
+
+  let executionMode = "local_ollama";
+  try {
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    if (prefs?.default_execution_mode) executionMode = prefs.default_execution_mode;
+  } catch { /* fallback */ }
+
+  const highEnergyKeywords = ["build", "write", "compile", "design", "presentation", "meeting", "workout", "gym", "code", "run", "refactor", "develop", "plan"];
+  
+  for (const task of todayTasks) {
+    const isPriorityHigh = task.priority >= 3;
+    const matchesKeyword = highEnergyKeywords.some(kw => task.title.toLowerCase().includes(kw));
+
+    if (isPriorityHigh || matchesKeyword) {
+      let shouldReschedule = true;
+      let reason = "High-energy task scheduled on a low-rest day.";
+
+      if (executionMode !== "disabled") {
+        try {
+          const prompt = `
+The user is fatigued today. Vitals: Sleep ${health.sleep_hours} hours, HRV ${health.hrv}.
+Task: "${task.title}"
+Description: "${task.description || "(No description)"}"
+
+Evaluate if this task should be rescheduled to another day to protect the user's rest and focus.
+Output a raw JSON block conforming to this schema:
+{
+  "should_reschedule": true,
+  "reason": "Short reason explaining why this task demands high physical/cognitive energy"
+}
+`;
+          const messages: ChatMessage[] = [
+            { role: "system", content: "You are an autonomic task planner. Output raw JSON only." },
+            { role: "user", content: prompt }
+          ];
+          const response = await executeChat(messages, executionMode);
+          const result = JSON.parse(response.replace(/```json/g, "").replace(/```/g, "").trim());
+          shouldReschedule = result.should_reschedule;
+          reason = result.reason;
+        } catch {
+          // Keep default fallback values
+        }
+      }
+
+      if (shouldReschedule) {
+        // Find lightest day in next 3 days
+        let bestDateStr = "";
+        let minTaskCount = 999;
+        
+        for (let i = 1; i <= 3; i++) {
+          const targetDate = new Date();
+          targetDate.setDate(targetDate.getDate() + i);
+          const targetDateStr = targetDate.toISOString().split("T")[0];
+          
+          const countRow = db.prepare("SELECT COUNT(*) as count FROM tasks WHERE due_date = ?").get(targetDateStr) as { count: number };
+          if (countRow.count < minTaskCount) {
+            minTaskCount = countRow.count;
+            bestDateStr = targetDateStr;
+          }
+        }
+
+        db.prepare(`
+          INSERT INTO rebalance_proposals (date, task_id, original_date, proposed_date, reason)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(todayStr, task.id, todayStr, bestDateStr, reason);
+
+        console.log(`[agent-swarm] ⚠️ Created rebalance proposal for task "${task.title}": Move to ${bestDateStr} (${reason})`);
+      }
+    }
+  }
+}
+
 async function main() {
   console.log("\n==================================================");
   console.log("       AUTONOMIC AGENT SWARM (STARTING...)");
@@ -276,6 +399,7 @@ async function main() {
     await runTaskAllocator();
     await runAutoReplyDrafting();
     await runContactWarmthTracker();
+    await runAutonomicRebalancer();
   } catch (err: any) {
     console.error("❌ Agent Swarm cycle failed:", err.message);
   }

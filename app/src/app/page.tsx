@@ -3,6 +3,7 @@
 import { MessageSquare, MonitorPlay, Folders, User, ChevronRight, ShieldCheck, Plus, Settings, X, Check } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { WIDGET_REGISTRY } from "@/components/widgets/registry";
+import { WidgetRebalancer } from "@/components/widgets/WidgetRebalancer";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
@@ -86,6 +87,13 @@ export default function DashboardPage() {
             <Settings size={12} /> Manage Bento
           </button>
         </header>
+
+        {/* ── Autonomic Rebalancer Banner ── */}
+        {!isNewUser && (
+          <WidgetRebalancer onUpdate={() => {
+            fetch("/api/dashboard").then((r) => r.json()).then(setStats).catch(() => {});
+          }} />
+        )}
 
         {/* ── Bento Box Grid ── */}
         {!isNewUser && (
