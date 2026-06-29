@@ -2,7 +2,16 @@
 
 > The private memory & agent layer for your local AI. Ingest your life, ask across it with citations — 100% local.
 
-**Rudder** is your private command center for the data of your life — identity, relationships, health, career, writing, knowledge, and media. It runs on your own machine, keeps your data local, and reasons over it with local AI. Your data is owned entirely by you.
+**Rudder** is a sovereign, local-first personal operating system — your private command center for the data of your life, owned entirely by you. 
+
+Running locally on your hardware, Rudder seamlessly connects your daily digital trails—identity, relationships, health, planner logs, writing archives, bookmarks, and media—into a single unified context layer. With local LLMs (Ollama/Exo) and vector storage (Mem0/Qdrant), Rudder reasons over your life data, serving as your private, long-term memory companion.
+
+### Why Rudder?
+*   **100% Local Privacy:** Your data never leaves your physical machine. No API subscriptions, no telemetry, and no corporate locks.
+*   **Ambient Voice Assistant HUD:** Trigger a minimal, translucent overlay from anywhere on macOS with a global key shortcut (`Option + Space`) to talk to your local AI context.
+*   **Hardware Telemetry Gateway:** Exposes a local HTTP port to register and stream real-time heart rate, steps, or environmental biometrics directly from smartwatches and ESP32 nodes.
+*   **Autonomic Rebalancer:** An active feedback loop that analyzes biometric rest indexes (Sleep/HRV) and automatically reschedules cognitive-heavy tasks to protect your focus and prevent burnout.
+*   **Universal Ingestion Watchers:** Auto-ingest browser bookmarks, chat history exports (ChatGPT/Claude), contacts, emails (IMAP inbox & SMTP send client), and task backups.
 
 See [`VISION.md`](./VISION.md) for the canonical definition of what Rudder is (and is not). The creative/ad-studio engine **FLOW** has been split into its own repository — see [`SPLIT_FLOW.md`](./SPLIT_FLOW.md).
 
