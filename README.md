@@ -2,9 +2,16 @@
 
 > The private memory & agent layer for your local AI. Ingest your life, ask across it with citations — 100% local.
 
-**Rudder** is a sovereign, local-first personal operating system — your private command center for the data of your life, owned entirely by you. 
+**Your personal data is scattered across the cloud and mined by tech giants.** We believe you shouldn't have to sacrifice convenience to keep your digital life private.
 
-Running locally on your hardware, Rudder seamlessly connects your daily digital trails—identity, relationships, health, planner logs, writing archives, bookmarks, and media—into a single unified context layer. With local LLMs (Ollama/Exo) and vector storage (Mem0/Qdrant), Rudder reasons over your life data, serving as your private, long-term memory companion.
+**Rudder** is your sovereign, local-first personal operating system. It runs a private AI helper over your daily files, health stats, emails, and chats, serving as your private, long-term memory companion.
+
+### The PEACE Framework
+*   **Problem:** Your personal data is scattered across the cloud and mined by tech giants.
+*   **Empathy:** We believe you shouldn't have to choose between convenience and total privacy.
+*   **Answer:** Rudder runs a private AI helper over your daily files, health stats, and chats.
+*   **Change:** Go from a passive data source to the sovereign master of your digital memory.
+*   **End Result:** Never worry about cloud leaks, subscription fees, or losing access to your data again.
 
 ### Why Rudder?
 *   **100% Local Privacy:** Your data never leaves your physical machine. No API subscriptions, no telemetry, and no corporate locks.
