@@ -1,6 +1,6 @@
 # Rudder
 
-> A sovereign, local-first personal operating system.
+> The private memory & agent layer for your local AI. Ingest your life, ask across it with citations — 100% local.
 
 **Rudder** is your private command center for the data of your life — identity, relationships, health, career, writing, knowledge, and media. It runs on your own machine, keeps your data local, and reasons over it with local AI. Your data is owned entirely by you.
 

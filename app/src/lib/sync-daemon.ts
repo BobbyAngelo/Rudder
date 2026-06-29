@@ -13,9 +13,10 @@ const TYPEWRITER_DIR = path.join(SYNC_DIR, "typewriter");
 const HEALTH_DIR = path.join(SYNC_DIR, "health");
 const DEVICES_DIR = path.join(SYNC_DIR, "devices");
 const CORRESPONDENCE_DIR = path.join(SYNC_DIR, "correspondence");
+const CHAT_DIR = path.join(SYNC_DIR, "chat");
 
 // Ensure default sync directories exist
-[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR].forEach((dir) => {
+[TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`[sync-daemon] Created directory: ${dir}`);
@@ -27,7 +28,7 @@ const db = getDB();
 // Seed default data sources if table is empty
 try {
   const count = db.prepare("SELECT count(*) as count FROM data_sources").get() as { count: number };
-  if (count.count === 0 || count.count === 2 || count.count === 3 || count.count === 4) {
+  if (count.count === 0 || count.count === 2 || count.count === 3 || count.count === 4 || count.count === 5) {
     db.prepare(`
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('Typewriter Logs', ?, 'folder', 'active')
@@ -47,6 +48,11 @@ try {
       INSERT OR IGNORE INTO data_sources (name, path, type, status)
       VALUES ('Correspondence Inbox', ?, 'correspondence', 'active')
     `).run(CORRESPONDENCE_DIR);
+
+    db.prepare(`
+      INSERT OR IGNORE INTO data_sources (name, path, type, status)
+      VALUES ('AI Chat Exports', ?, 'chat_export', 'active')
+    `).run(CHAT_DIR);
     
     console.log("[sync-daemon] Seeded default data sources in database.");
   }
@@ -473,6 +479,102 @@ function processCorrespondence(filePath: string, file: string, processedDir: str
 }
 
 /**
+ * Process chat history exports (.json) from ChatGPT or Claude
+ */
+function processChatExport(filePath: string, file: string, processedDir: string) {
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const data = JSON.parse(raw);
+
+    if (!Array.isArray(data)) {
+      console.warn(`[sync-daemon] Skipping chat export ${file}: JSON is not a conversation array.`);
+      fs.renameSync(filePath, path.join(processedDir, file));
+      return;
+    }
+
+    let chatgptCount = 0;
+    let claudeCount = 0;
+
+    db.transaction(() => {
+      const journalStmt = db.prepare(`
+        INSERT INTO journal_entries (title, content, mode, word_count, tags)
+        VALUES (?, ?, 'note', ?, ?)
+      `);
+
+      for (const conv of data) {
+        if (!conv) continue;
+
+        // 1. Detect ChatGPT format: has 'mapping'
+        if (conv.mapping && typeof conv.mapping === "object") {
+          const title = conv.title || "Untitled ChatGPT Chat";
+          const mdLines: string[] = [`# ${title}\n`];
+          
+          // Reconstruct conversation turns from mapping nodes
+          const nodes = Object.values(conv.mapping) as any[];
+          // Sort nodes by creation time if available
+          nodes.sort((a, b) => (a.message?.create_time || 0) - (b.message?.create_time || 0));
+
+          for (const node of nodes) {
+            const msg = node.message;
+            if (msg && msg.content && msg.content.parts) {
+              const role = msg.author?.role || "user";
+              const text = msg.content.parts.join("\n").trim();
+              if (text) {
+                const displayName = role === "user" ? "User" : role === "assistant" ? "Assistant" : role;
+                mdLines.push(`**${displayName}**: ${text}\n`);
+              }
+            }
+          }
+
+          if (mdLines.length > 1) {
+            const content = mdLines.join("\n");
+            const wordCount = content.split(/\s+/).filter(Boolean).length;
+            journalStmt.run(title, content, wordCount, '["chat-export", "chatgpt"]');
+            chatgptCount++;
+          }
+        } 
+        // 2. Detect Claude format: has 'chat_messages' or 'messages'
+        else if (Array.isArray(conv.chat_messages) || Array.isArray(conv.messages)) {
+          const title = conv.name || conv.title || "Untitled Claude Chat";
+          const mdLines: string[] = [`# ${title}\n`];
+          const messages = conv.chat_messages || conv.messages;
+
+          for (const msg of messages) {
+            const sender = msg.sender || msg.author || "user";
+            const text = msg.text || msg.content || "";
+            if (text) {
+              const displayName = sender === "user" ? "User" : sender === "assistant" ? "Assistant" : sender;
+              mdLines.push(`**${displayName}**: ${text}\n`);
+            }
+          }
+
+          if (mdLines.length > 1) {
+            const content = mdLines.join("\n");
+            const wordCount = content.split(/\s+/).filter(Boolean).length;
+            journalStmt.run(title, content, wordCount, '["chat-export", "claude"]');
+            claudeCount++;
+          }
+        }
+      }
+    })();
+
+    if (chatgptCount > 0) {
+      console.log(`[sync-daemon] ✅ Ingested ChatGPT export: ${file}. Imported ${chatgptCount} chats.`);
+    }
+    if (claudeCount > 0) {
+      console.log(`[sync-daemon] ✅ Ingested Claude export: ${file}. Imported ${claudeCount} chats.`);
+    }
+    if (chatgptCount === 0 && claudeCount === 0) {
+      console.warn(`[sync-daemon] No valid conversations parsed from chat export: ${file}`);
+    }
+
+    fs.renameSync(filePath, path.join(processedDir, file));
+  } catch (err: any) {
+    console.error(`[sync-daemon] ❌ Error processing chat export [${file}]: ${err.message}`);
+  }
+}
+
+/**
  * Scan a single registered data source directory
  */
 function scanSource(source: { id: number; name: string; path: string; type: string }) {
@@ -513,6 +615,9 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
       processedCount++;
     } else if ((file.endsWith(".json") || file.endsWith(".md")) && source.type === "correspondence") {
       processCorrespondence(filePath, file, processedDir);
+      processedCount++;
+    } else if (file.endsWith(".json") && source.type === "chat_export") {
+      processChatExport(filePath, file, processedDir);
       processedCount++;
     }
   }

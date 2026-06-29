@@ -27,7 +27,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Rudder",
-  description: "Rudder — a sovereign, local-first personal operating system. One private command center for your life data, run on local AI and owned entirely by you.",
+  description: "The private memory & agent layer for your local AI. Ingest your life, ask across it with citations — 100% local.",
   icons: {
     icon: "/favicon.ico",
   },

@@ -39,9 +39,9 @@ Anything not on this list (the removed FLOW engine; the never-built "Money / Bus
 
 Use these exact phrasings everywhere Rudder describes itself, so metadata, README, and nav all agree:
 
-- **Tagline:** "A sovereign, local-first personal operating system."
-- **One-liner:** "Your private command center for the data of your life — owned entirely by you."
-- **Metadata description:** "Rudder — a sovereign, local-first personal operating system. One private command center for your life data, run on local AI and owned entirely by you."
+- **Tagline:** "The private memory & agent layer for your local AI."
+- **One-liner:** "Ingest your life, ask across it with citations — 100% local."
+- **Metadata description:** "The private memory & agent layer for your local AI. Ingest your life, ask across it with citations — 100% local."
 
 ## FLOW (removed)
 
