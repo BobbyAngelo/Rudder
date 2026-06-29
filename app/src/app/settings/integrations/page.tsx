@@ -533,9 +533,16 @@ def send_telemetry(hr, hrv, steps):
                         <div className="text-[13px] font-medium text-[var(--color-text-primary)] flex items-center gap-2">
                           {s.name}
                           {s.status === "active" && <CheckCircle2 size={12} className="text-emerald-400" />}
+                          {s.status === "error" && <AlertCircle size={12} className="text-red-400 animate-pulse" />}
+                          {s.status === "disconnected" && <AlertCircle size={12} className="text-orange-400 animate-pulse" />}
                         </div>
                         <div className="text-[11px] text-[var(--color-text-muted)] font-mono flex flex-col gap-0.5">
                           <span>{s.path}</span>
+                          {(s.status === "error" || s.status === "disconnected") && s.error_message && (
+                            <span className="text-[10px] text-red-400 font-sans mt-0.5 flex items-center gap-1">
+                              ⚠️ Sync Error: {s.error_message}
+                            </span>
+                          )}
                           {s.last_scanned && (
                             <span className="text-[9px] text-[var(--color-text-dim)] uppercase tracking-wider mt-0.5">
                               Last Scan: {new Date(s.last_scanned).toLocaleString()}

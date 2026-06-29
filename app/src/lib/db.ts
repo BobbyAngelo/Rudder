@@ -1078,6 +1078,12 @@ const MIGRATIONS: Migration[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_external_id ON tasks(external_id);
     `,
   },
+  {
+    name: "036_data_sources_error_message",
+    sql: `
+      ALTER TABLE data_sources ADD COLUMN error_message TEXT;
+    `,
+  },
 ];
 
 

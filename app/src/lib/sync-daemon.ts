@@ -698,56 +698,68 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
   const dirPath = source.path;
   if (!fs.existsSync(dirPath)) {
     console.warn(`[sync-daemon] ⚠️ Directory for source "${source.name}" does not exist: ${dirPath}`);
+    db.prepare("UPDATE data_sources SET status = 'error', error_message = ? WHERE id = ?").run(
+      `Directory does not exist: ${dirPath}`,
+      source.id
+    );
     return;
   }
 
-  const processedDir = path.join(dirPath, "processed");
-  if (!fs.existsSync(processedDir)) {
-    fs.mkdirSync(processedDir, { recursive: true });
-  }
-
-  const files = fs.readdirSync(dirPath).filter(f => {
-    const full = path.join(dirPath, f);
-    return fs.statSync(full).isFile();
-  });
-
-  let processedCount = 0;
-  for (const file of files) {
-    const filePath = path.join(dirPath, file);
-    
-    if (file.endsWith(".md") && source.type === "folder") {
-      processMarkdown(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".csv") && source.type === "healthkit_export") {
-      processCSV(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".ics")) {
-      processICS(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".wav") && source.type === "device_capture") {
-      processWAV(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".json") && source.type === "device_capture") {
-      processDeviceJSON(filePath, file, processedDir);
-      processedCount++;
-    } else if ((file.endsWith(".json") || file.endsWith(".md")) && source.type === "correspondence") {
-      processCorrespondence(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".json") && source.type === "chat_export") {
-      processChatExport(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".html") && source.type === "bookmarks") {
-      processBookmarks(filePath, file, processedDir);
-      processedCount++;
-    } else if (file.endsWith(".json") && source.type === "tasks_backup") {
-      processTasksBackup(filePath, file, processedDir);
-      processedCount++;
+  try {
+    const processedDir = path.join(dirPath, "processed");
+    if (!fs.existsSync(processedDir)) {
+      fs.mkdirSync(processedDir, { recursive: true });
     }
-  }
 
-  // Update last_scanned timestamp in DB
-  const nowStr = new Date().toISOString();
-  db.prepare("UPDATE data_sources SET last_scanned = ? WHERE id = ?").run(nowStr, source.id);
+    const files = fs.readdirSync(dirPath).filter(f => {
+      const full = path.join(dirPath, f);
+      return fs.statSync(full).isFile();
+    });
+
+    let processedCount = 0;
+    for (const file of files) {
+      const filePath = path.join(dirPath, file);
+      
+      if (file.endsWith(".md") && source.type === "folder") {
+        processMarkdown(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".csv") && source.type === "healthkit_export") {
+        processCSV(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".ics")) {
+        processICS(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".wav") && source.type === "device_capture") {
+        processWAV(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".json") && source.type === "device_capture") {
+        processDeviceJSON(filePath, file, processedDir);
+        processedCount++;
+      } else if ((file.endsWith(".json") || file.endsWith(".md")) && source.type === "correspondence") {
+        processCorrespondence(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".json") && source.type === "chat_export") {
+        processChatExport(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".html") && source.type === "bookmarks") {
+        processBookmarks(filePath, file, processedDir);
+        processedCount++;
+      } else if (file.endsWith(".json") && source.type === "tasks_backup") {
+        processTasksBackup(filePath, file, processedDir);
+        processedCount++;
+      }
+    }
+
+    // Update last_scanned timestamp and status in DB
+    const nowStr = new Date().toISOString();
+    db.prepare("UPDATE data_sources SET status = 'active', error_message = NULL, last_scanned = ? WHERE id = ?").run(nowStr, source.id);
+  } catch (err: any) {
+    console.error(`[sync-daemon] ❌ Error scanning source "${source.name}": ${err.message}`);
+    db.prepare("UPDATE data_sources SET status = 'error', error_message = ? WHERE id = ?").run(
+      err.message,
+      source.id
+    );
+  }
 }
 
 /**

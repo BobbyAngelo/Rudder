@@ -161,7 +161,7 @@ async function scanSource(
   let totalSize = 0;
 
   const updateSourceStmt = db.prepare(`
-    UPDATE data_sources SET last_scanned = datetime('now') WHERE id = ?
+    UPDATE data_sources SET status = 'active', error_message = NULL, last_scanned = datetime('now') WHERE id = ?
   `);
 
   const sendBatchToAPI = async (nodes: FileNode[]) => {
@@ -280,7 +280,7 @@ export async function syncCommand(options: { watch?: boolean; interval?: number;
   }
 
   const runScan = async () => {
-    const sources = db.prepare("SELECT * FROM data_sources WHERE status = 'active'").all() as any[];
+    const sources = db.prepare("SELECT * FROM data_sources WHERE status IN ('active', 'error', 'disconnected')").all() as any[];
 
     if (sources.length === 0) {
       log.warn("No active data sources registered.");
@@ -298,7 +298,10 @@ export async function syncCommand(options: { watch?: boolean; interval?: number;
     for (const source of sources) {
       if (!fs.existsSync(source.path)) {
         log.warn(`Source disconnected: ${source.name} → ${source.path}`);
-        db.prepare("UPDATE data_sources SET status = 'disconnected' WHERE id = ?").run(source.id);
+        db.prepare("UPDATE data_sources SET status = 'disconnected', error_message = ? WHERE id = ?").run(
+          `Directory does not exist: ${source.path}`,
+          source.id
+        );
         continue;
       }
 
@@ -306,19 +309,28 @@ export async function syncCommand(options: { watch?: boolean; interval?: number;
       log.info(`Scanning: ${chalk.bold(label)}`);
       log.kv("Path", source.path);
 
-      const t0 = Date.now();
-      const result = await scanSource(db, source, port);
-      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      try {
+        const t0 = Date.now();
+        const result = await scanSource(db, source, port);
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
-      totalScanned += result.filesScanned;
-      totalNew += result.newFiles;
-      totalBytes += result.totalSize;
+        totalScanned += result.filesScanned;
+        totalNew += result.newFiles;
+        totalBytes += result.totalSize;
 
-      log.kv("Files scanned", result.filesScanned.toLocaleString());
-      log.kv("New entries", result.newFiles.toLocaleString(), result.newFiles > 0 ? "green" : "yellow");
-      log.kv("Source size", formatBytes(result.totalSize));
-      log.kv("Elapsed", `${elapsed}s`);
-      log.br();
+        log.kv("Files scanned", result.filesScanned.toLocaleString());
+        log.kv("New entries", result.newFiles.toLocaleString(), result.newFiles > 0 ? "green" : "yellow");
+        log.kv("Source size", formatBytes(result.totalSize));
+        log.kv("Elapsed", `${elapsed}s`);
+        log.br();
+      } catch (err: any) {
+        log.error(`Scan failed for source "${source.name}": ${err.message}`);
+        db.prepare("UPDATE data_sources SET status = 'error', error_message = ? WHERE id = ?").run(
+          err.message,
+          source.id
+        );
+        log.br();
+      }
     }
 
     log.section("Sync Summary");
