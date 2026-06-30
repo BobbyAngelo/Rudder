@@ -1,11 +1,12 @@
 import { getDB } from "./db";
+import { log } from "./logger";
 import crypto from "crypto";
 
 export interface IngestionPayload {
   source: string;              // e.g., 'google_calendar', 'apple_health', 'manual_command', 'local_cli'
   timestamp: string;           // ISO DateTime string
   classification: "task" | "event" | "health_metric" | "note";
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
 }
 
 export interface IngestionResult {
@@ -45,7 +46,7 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
     // 1. HEALTH METRICS
     // ═══════════════════════════════════════════════════════
     if (classification === "health_metric") {
-      const dateStr = data.payload.date || data.timestamp.split("T")[0];
+      const dateStr = (data.payload.date as string) || data.timestamp.split("T")[0];
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return {
           success: false,
@@ -60,7 +61,7 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
       if (existing) {
         // Build dynamic update query to only overwrite values provided in payload
         const updates: string[] = [];
-        const params: any[] = [];
+        const params: unknown[] = [];
         const fields = [
           "sleep_hours", "resting_hr", "hrv", "steps", "weight", "mood", "energy", 
           "notes", "blood_pressure_systolic", "blood_pressure_diastolic", 
@@ -98,7 +99,7 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
         // Insert new health metrics row
         const keys = ["date"];
         const placeholders = ["?"];
-        const params: any[] = [dateStr];
+        const params: unknown[] = [dateStr];
 
         const fields = [
           "sleep_hours", "resting_hr", "hrv", "steps", "weight", "mood", "energy", 
@@ -132,7 +133,7 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
     // 2. TASKS
     // ═══════════════════════════════════════════════════════
     if (classification === "task") {
-      const title = (data.payload.title || "").trim();
+      const title = ((data.payload.title as string) || "").trim();
       if (!title) {
         return { success: false, duplicate: false, message: "Task title is required." };
       }
@@ -175,7 +176,7 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
     // 3. CALENDAR EVENTS
     // ═══════════════════════════════════════════════════════
     if (classification === "event") {
-      const title = (data.payload.title || "").trim();
+      const title = ((data.payload.title as string) || "").trim();
       if (!title) {
         return { success: false, duplicate: false, message: "Event title is required." };
       }
@@ -184,9 +185,9 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
       const start_time = data.payload.start_time || null;
       const end_date = data.payload.end_date || null;
       const end_time = data.payload.end_time || null;
-      const category = data.payload.category || "personal";
-      const location = data.payload.location || "";
-      const color = data.payload.color || (category === "work" ? "#60a5fa" : category === "health" ? "#f87171" : category === "social" ? "#f472b6" : "#34d399");
+      const category = (data.payload.category as string) || "personal";
+      const location = (data.payload.location as string) || "";
+      const color = (data.payload.color as string) || (category === "work" ? "#60a5fa" : category === "health" ? "#f87171" : category === "social" ? "#f472b6" : "#34d399");
 
       // Duplicate check: Same title, start_date and start_time
       const existingEvent = db.prepare(`
@@ -219,8 +220,8 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
     // ═══════════════════════════════════════════════════════
     // 4. NOTES / OBSERVATION LEDGER (DEFAULT FALLBACK)
     // ═══════════════════════════════════════════════════════
-    const title = data.payload.title || data.payload.content || "Untitled Observation";
-    const deterministicId = data.payload.event_id || hashString(`${data.source}-${data.timestamp}-${title}`);
+    const title = (data.payload.title as string) || (data.payload.content as string) || "Untitled Observation";
+    const deterministicId = (data.payload.event_id as string) || hashString(`${data.source}-${data.timestamp}-${title}`);
 
     // Check if event_id already exists in reality_nodes
     const existingNode = db.prepare("SELECT event_id FROM reality_nodes WHERE event_id = ?").get(deterministicId) as { event_id: string } | undefined;
@@ -258,12 +259,12 @@ export function ingestPayload(data: IngestionPayload): IngestionResult {
       message: `Observation logged in 10D reality ledger: ${title}.`
     };
 
-  } catch (error: any) {
-    console.error("Ingestion error:", error);
+  } catch (error) {
+    log.error("Ingestion error:", error);
     return {
       success: false,
       duplicate: false,
-      message: `Ingestion failed: ${error.message}`
+      message: `Ingestion failed: ${(error as Error).message}`
     };
   }
 }

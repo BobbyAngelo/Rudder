@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
+import { getDataSource } from "@/lib/db/media";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 
+interface ScanRequestBody {
+  id?: string | number;
+  source?: string;
+  library_path?: string;
+  dry_run?: boolean;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    let body: any = {};
+    let body: ScanRequestBody = {};
     try {
       body = await req.json();
-    } catch (e) {
+    } catch {
       // Body can be empty
     }
 
@@ -18,7 +27,6 @@ export async function POST(req: NextRequest) {
     const sourceParam = searchParams.get("source") || body.source;
     const libraryPath = searchParams.get("library_path") || body.library_path;
     const dryRun = searchParams.get("dry_run") === "true" || body.dry_run === true;
-    const db = getDB();
 
     const importScriptPath = path.join(process.cwd(), "..", "scripts", "import.ts");
     if (!fs.existsSync(importScriptPath)) {
@@ -35,7 +43,7 @@ export async function POST(req: NextRequest) {
       if (dryRun) {
         args.push(`${doubleDash}dry-run`);
       }
-      console.log(`[scan-route] Triggering Apple Photos sync: library=${libraryPath || "default"}, dryRun=${dryRun}`);
+      log.info(`[scan-route] Triggering Apple Photos sync: library=${libraryPath || "default"}, dryRun=${dryRun}`);
 
       const child = spawn("npx", ["tsx", importScriptPath, ...args], {
         cwd: path.join(process.cwd(), ".."),
@@ -50,14 +58,14 @@ export async function POST(req: NextRequest) {
     const args = ["media"];
 
     if (id) {
-      const source = db.prepare("SELECT * FROM data_sources WHERE id = ?").get(id) as any;
+      const source = getDataSource(id);
       if (!source) {
         return NextResponse.json({ error: `Data source with ID ${id} not found` }, { status: 404 });
       }
-      args.push(`${doubleDash}id`, id);
-      console.log(`[scan-route] Triggering scan for source: ${source.name} (${source.path})`);
+      args.push(`${doubleDash}id`, String(id));
+      log.info(`[scan-route] Triggering scan for source: ${source.name} (${source.path})`);
     } else {
-      console.log(`[scan-route] Triggering scan for all active media folders`);
+      log.info(`[scan-route] Triggering scan for all active media folders`);
     }
 
     // Spawn import.ts media scanner as a detached background process
@@ -70,8 +78,8 @@ export async function POST(req: NextRequest) {
     child.unref();
 
     return NextResponse.json({ success: true, message: "Scan successfully triggered in background" });
-  } catch (error: any) {
-    console.error("POST /api/media/scan Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("POST /api/media/scan Error:", error);
+    return serverError(error);
   }
 }

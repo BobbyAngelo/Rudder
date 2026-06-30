@@ -1,7 +1,6 @@
 "use client";
 
-import { Circle, CheckCircle2, Clock, Trash2, Calendar } from "lucide-react";
-import { EmptyState } from "@/components/ui";
+import { Circle, CheckCircle2, Trash2, Calendar } from "lucide-react";
 import { useTaskActions, QuickAdd } from "./TaskListView";
 
 const PRIORITY_CONFIG = [
@@ -19,7 +18,7 @@ const STATUS_CONFIG: Record<string, { color: string }> = {
 };
 
 export default function TaskBoardView() {
-  const { tasks, loading, createTask, updateTask, deleteTask, toggleStatus } = useTaskActions();
+  const { tasks, loading, createTask, deleteTask, toggleStatus } = useTaskActions();
 
   const columns = [
     { status: "todo", label: "To Do", color: "#94a3b8" },

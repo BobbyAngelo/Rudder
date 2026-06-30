@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { 
-  Briefcase, Sparkles, Trophy, Calendar, Users, Cpu, Mic, MicOff,
-  Video, Compass, Award, ExternalLink, Link2, Plus, Play, Info,
-  TrendingUp, Send, CheckCircle2, AlertCircle, RefreshCw, Layers,
-  FileText, Printer, Download, MapPin, Mail, Phone, Globe
+import {
+  Briefcase, Sparkles, Trophy, Cpu, Mic, MicOff,
+  Award, Link2, Plus, Play, Info,
+  Send, AlertCircle, RefreshCw, Layers,
+  FileText, Printer, MapPin, Globe
 } from "lucide-react";
 
 // Types matching career-data.json
@@ -137,8 +137,8 @@ export default function CareerPage() {
         if (!res.ok) throw new Error("Failed to load career data");
         const data = await res.json();
         setCareerData(data);
-      } catch (err: any) {
-        setDataError(err.message);
+      } catch (err: unknown) {
+        setDataError(err instanceof Error ? err.message : "Failed to load career data");
       } finally {
         setDataLoading(false);
       }
@@ -150,7 +150,7 @@ export default function CareerPage() {
         if (!res.ok) throw new Error("GEMINI_API_KEY is missing");
         const data = await res.json();
         setApiKey(data.geminiApiKey);
-      } catch (err: any) {
+      } catch {
         setConfigError("GEMINI_API_KEY is not set in .env.local. Provide a key to run the live assistant.");
       }
     }
@@ -362,10 +362,16 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
 
       socket.onmessage = async (event) => {
         try {
-          const response = JSON.parse(event.data);
-          
+          const response = JSON.parse(event.data) as {
+            serverContent?: {
+              modelTurn?: { parts?: Array<{ text?: string }> };
+              turnComplete?: boolean;
+              interrupted?: boolean;
+            };
+          };
+
           if (response.serverContent) {
-            const { modelTurn, turnComplete, interrupted } = response.serverContent;
+            const { modelTurn, interrupted } = response.serverContent;
             
             if (interrupted) {
               setCopilotText(prev => prev + "\n\n*[Interrupted by speech]*\n");
@@ -374,17 +380,18 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
             if (modelTurn && modelTurn.parts) {
               for (const part of modelTurn.parts) {
                 if (part.text) {
+                  const partText = part.text;
                   // Capture stream chunks and update copilot teleprompter HUD
                   setCopilotText(prev => {
                     // If starting a new stream block, wipe previous status strings
                     if (prev.includes("Waiting for audio stream") || prev.includes("Copilot Online")) {
-                      return part.text;
+                      return partText;
                     }
-                    return prev + part.text;
+                    return prev + partText;
                   });
 
                   // Capture transcribed question if parsed
-                  const heardMatch = part.text.match(/Heard Question:\s*\n*"(.*?)"/i);
+                  const heardMatch = partText.match(/Heard Question:\s*\n*"(.*?)"/i);
                   if (heardMatch && heardMatch[1]) {
                     setTranscription(`Heard: "${heardMatch[1]}"`);
                   }
@@ -411,10 +418,10 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
         stopAudioStreaming();
       };
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setConnectionState("disconnected");
-      setCopilotText(`### ⚠️ Connection Failed\nError: ${err.message}`);
+      setCopilotText(`### ⚠️ Connection Failed\nError: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -432,7 +439,10 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
       mediaStreamRef.current = stream;
 
       // Downsampling setup: standard 16kHz context
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioCtx = new AudioContextClass({ sampleRate: 16000 });
       audioContextRef.current = audioCtx;
 
       const source = audioCtx.createMediaStreamSource(stream);
@@ -648,7 +658,7 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
                 <h4 className="text-[11px] font-bold text-text-secondary group-hover:text-accent transition-colors">📺 Jimmy Fallon Late Night Emmy Win</h4>
                 <Plus size={10} className="text-text-dim group-hover:text-accent" />
               </div>
-              <p className="text-[10px] leading-relaxed text-text-muted mt-1">Conceiving and executing the Emmy-winning digital launch strategy for NBC's Late Night. Emphasizes creative operations.</p>
+              <p className="text-[10px] leading-relaxed text-text-muted mt-1">Conceiving and executing the Emmy-winning digital launch strategy for NBC&apos;s Late Night. Emphasizes creative operations.</p>
             </div>
 
             <div 
@@ -656,10 +666,10 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
               className="p-3 rounded-xl border border-border bg-background/20 hover:border-accent/30 hover:bg-accent/5 transition-all cursor-pointer group"
             >
               <div className="flex justify-between items-start">
-                <h4 className="text-[11px] font-bold text-text-secondary group-hover:text-accent transition-colors">🕶️ 'Making It VRy Big' BuzzFeed VR</h4>
+                <h4 className="text-[11px] font-bold text-text-secondary group-hover:text-accent transition-colors">🕶️ &apos;Making It VRy Big&apos; BuzzFeed VR</h4>
                 <Plus size={10} className="text-text-dim group-hover:text-accent" />
               </div>
-              <p className="text-[10px] leading-relaxed text-text-muted mt-1">Directing and producing BuzzFeed's flagship VR series with Meta, securing a Telly Award. Highlights VR/AR storytelling.</p>
+              <p className="text-[10px] leading-relaxed text-text-muted mt-1">Directing and producing BuzzFeed&apos;s flagship VR series with Meta, securing a Telly Award. Highlights VR/AR storytelling.</p>
             </div>
 
             <div 
@@ -748,7 +758,7 @@ YOUR HUD OUTPUT SCHEMA FORMAT MUST EXACTLY MATCH THIS TEMPLATE ON EVERY UPDATE:
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <Layers size={16} className="text-accent" /> Robert's Sourced Chronology
+                  <Layers size={16} className="text-accent" /> Robert&apos;s Sourced Chronology
                 </h2>
                 <span className="text-[10px] font-mono text-text-muted">Verified from career-data.json</span>
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Cpu, Activity, RefreshCw, Network, AlertCircle, Bot } from "lucide-react";
+import { Cpu, AlertCircle } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 
 interface StatusData {
@@ -51,17 +51,6 @@ export function WidgetIntranetStatus() {
     const interval = setInterval(fetchStatus, 6000);
     return () => clearInterval(interval);
   }, []);
-
-  const formatScannedTime = (isoString: string | null) => {
-    if (!isoString) return "never";
-    const date = new Date(isoString);
-    const diffMs = Date.now() - date.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    if (diffSecs < 10) return "just now";
-    if (diffSecs < 60) return `${diffSecs}s ago`;
-    const diffMins = Math.floor(diffSecs / 60);
-    return `${diffMins}m ago`;
-  };
 
   return (
     <WidgetCard title="Intranet & Swarm Status" icon={<Cpu size={14} />} className="col-span-2 md:col-span-2 row-span-1">

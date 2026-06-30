@@ -1,8 +1,34 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
 
 // API Route for Sovereign Pala Note
 // Zero double-hyphens in comments or code
+
+interface JournalEntryRow {
+  id: number;
+  title: string;
+  content: string;
+  mode: string;
+  word_count: number;
+  tags: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PalaPostBody {
+  title?: string;
+  content?: string;
+  tags?: unknown[];
+}
+
+interface PalaPutBody {
+  id?: number | string;
+  title?: string;
+  content?: string;
+  tags?: unknown[];
+}
 
 export async function GET(request: Request) {
   try {
@@ -21,7 +47,7 @@ export async function GET(request: Request) {
 
     // Auto-seed if empty
     if (entries.length === 0) {
-      console.log("[api/pala] Seeding initial premium notes...");
+      log.info("[api/pala] Seeding initial premium notes...");
       const starterNotes = [
         {
           title: "Sovereign AI Vision",
@@ -59,19 +85,19 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ entries });
-  } catch (error: any) {
-    console.error("[api/pala] GET error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/pala] GET error:", error);
+    return serverError(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
     const db = getDB();
-    const body = await request.json();
+    const body = (await request.json()) as PalaPostBody;
 
     const content = body.content || "";
-    const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;
+    const wordCount = content.split(/\s+/).filter((w) => w.length > 0).length;
 
     const result = db.prepare(
       `INSERT INTO journal_entries (title, content, mode, word_count, tags)
@@ -84,9 +110,9 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ id: result.lastInsertRowid });
-  } catch (error: any) {
-    console.error("[api/pala] POST error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/pala] POST error:", error);
+    return serverError(error);
   }
 }
 
@@ -103,23 +129,23 @@ export async function DELETE(request: Request) {
     db.prepare("DELETE FROM journal_entries WHERE id = ? AND mode = 'pala'").run(id);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[api/pala] DELETE error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/pala] DELETE error:", error);
+    return serverError(error);
   }
 }
 
 export async function PUT(request: Request) {
   try {
     const db = getDB();
-    const body = await request.json();
+    const body = (await request.json()) as PalaPutBody;
     const id = body.id;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    const existing = db.prepare("SELECT * FROM journal_entries WHERE id = ? AND mode = 'pala'").get(id) as any;
+    const existing = db.prepare("SELECT * FROM journal_entries WHERE id = ? AND mode = 'pala'").get(id) as JournalEntryRow | undefined;
     if (!existing) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
@@ -127,7 +153,7 @@ export async function PUT(request: Request) {
     const title = body.title !== undefined ? body.title : existing.title;
     const content = body.content !== undefined ? body.content : existing.content;
     const tags = body.tags !== undefined ? JSON.stringify(body.tags) : existing.tags;
-    const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;
+    const wordCount = content.split(/\s+/).filter((w) => w.length > 0).length;
 
     db.prepare(
       `UPDATE journal_entries 
@@ -136,8 +162,8 @@ export async function PUT(request: Request) {
     ).run(title, content, tags, wordCount, id);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[api/pala] PUT error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/pala] PUT error:", error);
+    return serverError(error);
   }
 }

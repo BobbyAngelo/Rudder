@@ -30,7 +30,7 @@ export class NCIFactory {
     const hrvDelta = state.hrvCurrent - state.hrvBaseline;
     const isHighStrain = hrvDelta < -10 || state.sleepHours < 6.0;
 
-    let systemPrompt = `You are a high-influence cognitive partner utilizing the NCI Reversal architecture.
+    const systemPrompt = `You are a high-influence cognitive partner utilizing the NCI Reversal architecture.
 Your objective is to establish a position the user already holds (that their health and recovery matter) and ask why they do not hold a weaker version of it.
 Never direct, instruct, or nag the user to rest. Let their own neurology build the case for recovery.`;
 

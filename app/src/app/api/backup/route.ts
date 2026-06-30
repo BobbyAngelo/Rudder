@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { getDB } from "@/lib/db";
 import { join } from "path";
 import { existsSync } from "fs";
@@ -53,10 +54,10 @@ export async function GET(req: Request) {
       }
     });
 
-  } catch (error: any) {
-    console.error("GET /api/backup Error:", error);
+  } catch (error) {
+    log.error("GET /api/backup Error:", error);
     return NextResponse.json(
-      { success: false, message: `Backup failed: ${error.message}` },
+      { success: false, message: `Backup failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

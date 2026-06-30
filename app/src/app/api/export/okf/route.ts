@@ -7,6 +7,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import AdmZip from "adm-zip";
 import { buildOKFBundle } from "@/lib/okf";
 
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
         "Content-Length": String(buffer.length),
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 
@@ -11,7 +12,7 @@ export async function GET() {
     }
     const data = JSON.parse(readFileSync(DATA_PATH, "utf-8"));
     return NextResponse.json(data);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return serverError(error);
   }
 }

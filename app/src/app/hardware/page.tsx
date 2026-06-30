@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { Card, CardBody } from "@/components/ui";
 import {
-  Cpu, Server, Box, Search, Loader2, Wifi,
+  Cpu, Server, Box, Search, Loader2,
   FolderOpen, Package, CircleDot, HardDrive,
-  Database, RefreshCw, FileText
+  RefreshCw
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
@@ -46,6 +46,19 @@ interface DriveInfo {
   folderCount: number;
 }
 
+interface HardwareData {
+  cluster?: ClusterNode[];
+  projects?: HwProject[];
+  parts?: Part[];
+}
+
+interface DriveDetail {
+  tree?: FolderNode[];
+  folderCount?: number;
+  totals?: { images?: number; videos?: number; imageSizeBytes?: number; videoSizeBytes?: number } | null;
+  [key: string]: unknown;
+}
+
 type Section = "cluster" | "projects" | "parts" | "drives";
 
 const SECTION_COLOR = "var(--color-section-infra)";
@@ -75,7 +88,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default function HardwarePage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<HardwareData | null>(null);
   const [drives, setDrives] = useState<DriveInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<Section>("cluster");
@@ -83,7 +96,7 @@ export default function HardwarePage() {
   const [search, setSearch] = useState("");
 
   // Storage drive specific states
-  const [selectedDriveDetail, setSelectedDriveDetail] = useState<any>(null);
+  const [selectedDriveDetail, setSelectedDriveDetail] = useState<DriveDetail | null>(null);
   const [loadingDriveDetail, setLoadingDriveDetail] = useState(false);
   const [driveFolderSearch, setDriveFolderSearch] = useState("");
 
@@ -421,7 +434,7 @@ function DriveDetailView({
 }: { 
   drive: DriveInfo;
   loadingDetail: boolean;
-  detail: any;
+  detail: DriveDetail | null;
   folderSearch: string;
   setFolderSearch: (s: string) => void;
 }) {
@@ -500,7 +513,7 @@ function DriveDetailView({
               <span>⚠️</span> Uncataloged Storage Device
             </h4>
             <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed mb-4">
-              Volume <strong>{drive.name}</strong> hasn't been scanned for system cataloging yet. You can trigger a deep-scan from the server terminal:
+              Volume <strong>{drive.name}</strong> hasn&apos;t been scanned for system cataloging yet. You can trigger a deep-scan from the server terminal:
             </p>
             <div className="bg-background border border-white/10 rounded-lg p-3 flex items-center justify-between group">
               <code className="text-[10px] text-emerald-400 font-mono select-all">

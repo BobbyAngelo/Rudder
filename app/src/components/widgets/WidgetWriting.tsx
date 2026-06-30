@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { PenTool, Loader2, ArrowRight, BookOpen } from "lucide-react";
+import { PenTool, Loader2, BookOpen } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 import Link from "next/link";
 
@@ -19,8 +19,9 @@ export function WidgetWriting() {
   const [wordGoal, setWordGoal] = useState(300);
 
   useEffect(() => {
-    // Load word goal
+    // Load word goal from localStorage (client-only external store) on mount.
     const savedGoal = localStorage.getItem("rudder_writing_word_goal");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedGoal) setWordGoal(parseInt(savedGoal));
 
     // Fetch writing entries
@@ -62,7 +63,7 @@ export function WidgetWriting() {
             
             {/* Word Goal tracker */}
             <div className="flex items-center justify-between text-[10px] font-mono mb-0.5">
-              <span style={{ color: "var(--color-text-dim)" }}>TODAY'S WORDS:</span>
+              <span style={{ color: "var(--color-text-dim)" }}>TODAY&apos;S WORDS:</span>
               <span className="text-accent font-semibold">{todayWords} / {wordGoal} w ({progressPercent}%)</span>
             </div>
             

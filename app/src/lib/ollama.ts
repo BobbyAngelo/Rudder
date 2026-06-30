@@ -87,7 +87,7 @@ export async function ollamaStatus(): Promise<{ online: boolean; models: string[
     const data = await res.json();
     return {
       online: true,
-      models: (data.models || []).map((m: any) => m.name),
+      models: ((data.models || []) as { name: string }[]).map((m) => m.name),
       host,
     };
   } catch {

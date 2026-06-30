@@ -81,8 +81,8 @@ export function WidgetSwarm() {
         setLogs(prev => [...prev, `[System Error] ${errMsg}`]);
         setError(errMsg);
       }
-    } catch (err: any) {
-      const errMsg = err.message || "Failed to connect to API server.";
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to connect to API server.";
       setLogs(prev => [...prev, `[System Error] ${errMsg}`]);
       setError(errMsg);
     } finally {
@@ -116,8 +116,8 @@ export function WidgetSwarm() {
       } else {
         setError(data.error || "Failed to save draft.");
       }
-    } catch (err: any) {
-      setError(err.message || "Connection failed when saving draft.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Connection failed when saving draft.");
     } finally {
       setSaving(false);
     }

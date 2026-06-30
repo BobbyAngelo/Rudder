@@ -53,7 +53,20 @@ interface IdentityLink {
   label: string;
 }
 
-const ACCENT = "var(--color-section-identity)"; // Teal/Emerald themed local accent
+interface Habit {
+  id: number;
+  title: string;
+  description?: string;
+  frequency?: string;
+  color?: string;
+  linked_value_id?: number | string | null;
+}
+
+interface HabitLog {
+  habit_id: number;
+  date: string;
+  status?: string;
+}
 
 export default function IdentityPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -74,11 +87,11 @@ export default function IdentityPage() {
   const [localTime, setLocalTime] = useState("");
 
   // Habits States
-  const [habits, setHabits] = useState<any[]>([]);
-  const [habitLogs, setHabitLogs] = useState<any[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [habitsLoading, setHabitsLoading] = useState(true);
   const [showHabitModal, setShowHabitModal] = useState(false);
-  const [habitDraft, setHabitDraft] = useState<any>({ frequency: "daily", color: "var(--color-accent)" });
+  const [habitDraft, setHabitDraft] = useState<Partial<Habit>>({ frequency: "daily", color: "var(--color-accent)" });
   const [habitSaving, setHabitSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -110,6 +123,7 @@ export default function IdentityPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async loaders set state only after awaited fetch, not synchronously
     fetchData();
     fetchHabits();
   }, [fetchData, fetchHabits]);
@@ -131,7 +145,7 @@ export default function IdentityPage() {
           hour12: true
         });
         setLocalTime(time);
-      } catch (e) {
+      } catch {
         setLocalTime("");
       }
     };
@@ -228,7 +242,7 @@ export default function IdentityPage() {
       }
     }
 
-    let currentCheck = new Date(currentCheckStr);
+    const currentCheck = new Date(currentCheckStr);
     while (true) {
       currentCheck.setDate(currentCheck.getDate() - 1);
       const str = `${currentCheck.getFullYear()}-${String(currentCheck.getMonth() + 1).padStart(2, "0")}-${String(currentCheck.getDate()).padStart(2, "0")}`;
@@ -426,6 +440,7 @@ export default function IdentityPage() {
                 {editing ? (
                   "✍️"
                 ) : profile?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- user-supplied remote avatar URL, no next/image domain config
                   <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
                   (profile?.display_name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()

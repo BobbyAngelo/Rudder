@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { generateSpeech } from "@/lib/tts";
 
 /* ═══════════════════════════════════════════════════════
@@ -25,10 +26,10 @@ export async function POST(req: Request) {
         "Content-Length": String(audioBuffer.length),
       },
     });
-  } catch (err: any) {
-    console.error("[speech-route] Error generating speech:", err.message);
+  } catch (err) {
+    log.error("[speech-route] Error generating speech:", err instanceof Error ? err.message : String(err));
     return NextResponse.json(
-      { error: "Voice synthesis failed", details: err.message },
+      { error: "Voice synthesis failed" },
       { status: 500 }
     );
   }

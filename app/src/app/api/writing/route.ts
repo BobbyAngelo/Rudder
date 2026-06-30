@@ -1,124 +1,106 @@
 import { NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
+import {
+  getEntry,
+  listEntries,
+  modeBreakdown,
+  createEntry,
+  updateEntry,
+  deleteEntry,
+  type JournalEntryInput,
+} from "@/lib/db/writing";
 
 /* ═══════════════════════════════════════════════════════
    /api/writing — Journal entries CRUD
-   
+
    GET  → Returns entries with optional mode filter
    POST → Creates a new entry
    PUT  → Updates an existing entry
    ═══════════════════════════════════════════════════════ */
 
+interface JournalRequestBody {
+  id?: number | string;
+  title?: string | null;
+  content?: string | null;
+  mode?: string | null;
+  wpm?: number | null;
+  tags?: unknown[] | null;
+  parent_id?: number | null;
+  meta_json?: string | null;
+  is_folder?: number | null;
+}
+
+/** Map the parsed request body into the repository input shape. */
+function toEntryInput(body: JournalRequestBody): JournalEntryInput {
+  return {
+    title: body.title,
+    content: body.content,
+    mode: body.mode,
+    wpm: body.wpm,
+    tags: body.tags,
+    parent_id: body.parent_id !== undefined ? body.parent_id : null,
+    meta_json: body.meta_json,
+    is_folder: body.is_folder,
+  };
+}
+
 export async function GET(request: Request) {
   try {
-    const db = getDB();
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get("mode") || "";
     const id = searchParams.get("id") || "";
 
     // Single entry by ID
     if (id) {
-      const entry = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(id);
+      const entry = getEntry(id);
       return NextResponse.json({ entry });
     }
 
-    let query = "SELECT id, title, mode, word_count, wpm, tags, parent_id, meta_json, is_folder, created_at, updated_at FROM journal_entries WHERE 1=1";
-    const params: any[] = [];
-
-    if (mode) {
-      query += " AND mode = ?";
-      params.push(mode);
-    }
-
-    query += " ORDER BY is_folder DESC, updated_at DESC";
-    const entries = db.prepare(query).all(...params);
+    const entries = listEntries(mode ? { mode } : {});
 
     // Mode breakdown
-    const modes = db
-      .prepare("SELECT mode, COUNT(*) as count FROM journal_entries GROUP BY mode ORDER BY count DESC")
-      .all();
+    const modes = modeBreakdown();
 
     return NextResponse.json({ entries, modes });
-  } catch (error: any) {
-    console.error("[api/writing] GET error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/writing] GET error:", error);
+    return serverError(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const db = getDB();
-    const body = await request.json();
+    const body = (await request.json()) as JournalRequestBody;
 
-    const content = body.content || "";
-    const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;
+    const id = createEntry(toEntryInput(body));
 
-    const result = db
-      .prepare(
-        `INSERT INTO journal_entries (title, content, mode, word_count, wpm, tags, parent_id, meta_json, is_folder)
-         VALUES (@title, @content, @mode, @word_count, @wpm, @tags, @parent_id, @meta_json, @is_folder)`
-      )
-      .run({
-        title: body.title || "Untitled",
-        content,
-        mode: body.mode || "journal",
-        word_count: wordCount,
-        wpm: body.wpm || null,
-        tags: JSON.stringify(body.tags || []),
-        parent_id: body.parent_id !== undefined ? body.parent_id : null,
-        meta_json: body.meta_json || "{}",
-        is_folder: body.is_folder || 0,
-      });
-
-    return NextResponse.json({ id: result.lastInsertRowid });
-  } catch (error: any) {
-    console.error("[api/writing] POST error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ id });
+  } catch (error) {
+    log.error("[api/writing] POST error:", error);
+    return serverError(error);
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    const db = getDB();
-    const body = await request.json();
+    const body = (await request.json()) as JournalRequestBody;
 
     if (!body.id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    const content = body.content || "";
-    const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;
-
-    db.prepare(
-      `UPDATE journal_entries 
-       SET title = @title, content = @content, mode = @mode, 
-           word_count = @word_count, wpm = @wpm, tags = @tags,
-           parent_id = @parent_id, meta_json = @meta_json, is_folder = @is_folder,
-           updated_at = datetime('now')
-       WHERE id = @id`
-    ).run({
-      id: body.id,
-      title: body.title || "Untitled",
-      content,
-      mode: body.mode || "journal",
-      word_count: wordCount,
-      wpm: body.wpm || null,
-      tags: JSON.stringify(body.tags || []),
-      parent_id: body.parent_id !== undefined ? body.parent_id : null,
-      meta_json: body.meta_json || "{}",
-      is_folder: body.is_folder || 0,
-    });
+    updateEntry(body.id, toEntryInput(body));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[api/writing] PUT error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/writing] PUT error:", error);
+    return serverError(error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const db = getDB();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -126,12 +108,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    db.prepare("DELETE FROM journal_entries WHERE id = ?").run(id);
+    deleteEntry(id);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[api/writing] DELETE error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/writing] DELETE error:", error);
+    return serverError(error);
   }
 }
-

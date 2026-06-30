@@ -13,7 +13,7 @@ type View = "timeline" | "tasks" | "board";
 export default function PlannerPage() {
   const [view, setView] = useState<View>("timeline");
 
-  const tabs: { id: View; label: string; icon: any }[] = [
+  const tabs: { id: View; label: string; icon: React.ElementType }[] = [
     { id: "timeline", label: "Timeline", icon: CalendarDays },
     { id: "tasks", label: "Tasks", icon: CheckSquare },
     { id: "board", label: "Board", icon: Columns3 },

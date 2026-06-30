@@ -1,29 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
+import { deviceTokenValid } from "@/lib/device-auth";
 
 // Non-negotiable: Standard hyphens, colons, or parentheses only. Zero em-dashes.
-
-/**
- * Ensures that the presence_telemetry table is initialized in the SQLite database.
- */
-function initializePresenceTable(db: any) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS presence_telemetry (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sensor_id TEXT NOT NULL,
-      variance REAL NOT NULL,
-      presence_detected INTEGER NOT NULL,
-      raw_data TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_presence_sensor ON presence_telemetry(sensor_id);
-    CREATE INDEX IF NOT EXISTS idx_presence_time ON presence_telemetry(created_at);
-  `);
-}
+// The presence_telemetry table is provisioned by migration 037 in lib/db.ts.
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    if (!deviceTokenValid(req)) {
+      return NextResponse.json({ error: "Unauthorized device" }, { status: 401 });
+    }
+
+    const body = await req.json() as {
+      sensor_id?: string;
+      variance?: number | string;
+      presence_detected?: boolean | number;
+      [key: string]: unknown;
+    };
     const { sensor_id, variance, presence_detected, ...rest } = body;
 
     if (!sensor_id || variance === undefined || presence_detected === undefined) {
@@ -34,7 +29,6 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDB();
-    initializePresenceTable(db);
 
     const isPresence = presence_detected ? 1 : 0;
     const rawData = JSON.stringify(rest || {});
@@ -42,9 +36,9 @@ export async function POST(req: NextRequest) {
     const result = db.prepare(`
       INSERT INTO presence_telemetry (sensor_id, variance, presence_detected, raw_data)
       VALUES (?, ?, ?, ?)
-    `).run(sensor_id, parseFloat(variance), isPresence, rawData);
+    `).run(sensor_id, parseFloat(String(variance)), isPresence, rawData);
 
-    console.log(`[ESP32 Telemetry] Ingested node '${sensor_id}' presence (State: ${isPresence}, Var: ${variance})`);
+    log.info(`[ESP32 Telemetry] Ingested node '${sensor_id}' presence (State: ${isPresence}, Var: ${variance})`);
     
     return NextResponse.json(
       { 
@@ -56,23 +50,26 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
 
-  } catch (err: any) {
-    console.error("[ESP32 Telemetry] Ingestion error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[ESP32 Telemetry] Ingestion error:", err);
+    return serverError(err);
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
+    if (!deviceTokenValid(req)) {
+      return NextResponse.json({ error: "Unauthorized device" }, { status: 401 });
+    }
+
     const db = getDB();
-    initializePresenceTable(db);
 
     const url = new URL(req.url);
     const limit = parseInt(url.searchParams.get("limit") || "10");
     const sensorId = url.searchParams.get("sensor_id");
 
     let query = "SELECT * FROM presence_telemetry";
-    const params: any[] = [];
+    const params: (string | number)[] = [];
 
     if (sensorId) {
       query += " WHERE sensor_id = ?";
@@ -82,7 +79,11 @@ export async function GET(req: NextRequest) {
     query += " ORDER BY created_at DESC LIMIT ?";
     params.push(limit);
 
-    const records = db.prepare(query).all(...params) as any[];
+    const records = db.prepare(query).all(...params) as {
+      presence_detected: number;
+      raw_data: string | null;
+      [key: string]: unknown;
+    }[];
 
     // Parse JSON field
     const parsed = records.map(r => ({
@@ -93,8 +94,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ records: parsed });
 
-  } catch (err: any) {
-    console.error("[ESP32 Telemetry] Retrieval error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[ESP32 Telemetry] Retrieval error:", err);
+    return serverError(err);
   }
 }

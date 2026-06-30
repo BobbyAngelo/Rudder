@@ -14,13 +14,33 @@ export default function OverlayPage() {
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const recognitionRef = useRef<any>(null);
+  interface SpeechRecognitionInstance {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onstart: (() => void) | null;
+    onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
+    onerror: ((event: unknown) => void) | null;
+    onend: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+    abort: () => void;
+  }
+
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Holds the latest handleSubmitQuery so the speech recognition callback (set up
+  // once in the effect) always invokes the current implementation.
+  const handleSubmitQueryRef = useRef<(queryText: string) => void>(() => {});
 
   useEffect(() => {
     // Initialize Web Speech API Recognition
     if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const win = window as unknown as {
+        SpeechRecognition?: new () => SpeechRecognitionInstance;
+        webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+      };
+      const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const rec = new SpeechRecognition();
         rec.continuous = false;
@@ -33,14 +53,14 @@ export default function OverlayPage() {
           setTranscript("");
         };
 
-        rec.onresult = (event: any) => {
+        rec.onresult = (event) => {
           const resultText = event.results[0][0].transcript;
           setTranscript(resultText);
           setInputText(resultText);
-          handleSubmitQuery(resultText);
+          handleSubmitQueryRef.current(resultText);
         };
 
-        rec.onerror = (e: any) => {
+        rec.onerror = (e) => {
           console.error("Speech Recognition Error:", e);
           setListening(false);
           setStatus("idle");
@@ -136,6 +156,11 @@ export default function OverlayPage() {
     }
   };
 
+  // Keep the ref pointing at the latest handleSubmitQuery for the speech callback.
+  useEffect(() => {
+    handleSubmitQueryRef.current = handleSubmitQuery;
+  });
+
   const handleClose = () => {
     if (typeof window !== "undefined") {
       window.close();
@@ -219,7 +244,7 @@ export default function OverlayPage() {
                 </span>
                 {transcript && (
                   <p className="text-[11px] text-amber-400/90 mt-1 italic font-medium">
-                    "{transcript}"
+                    &quot;{transcript}&quot;
                   </p>
                 )}
               </div>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { compileHarnessContext } from "@/lib/harness";
 import { ollamaChat, ollamaStatus } from "@/lib/ollama";
 
@@ -51,8 +52,8 @@ export async function POST(req: NextRequest) {
     let harnessContext;
     try {
       harnessContext = compileHarnessContext(slug);
-    } catch (e: any) {
-      return NextResponse.json({ success: false, error: `Failed to compile harness context: ${e.message}` }, { status: 404 });
+    } catch {
+      return NextResponse.json({ success: false, error: `Failed to compile harness context` }, { status: 404 });
     }
 
     logs.push(cleanEmDashes(`[System] Context compiled successfully (~${harnessContext.token_estimate} estimated tokens).`));
@@ -82,9 +83,9 @@ Please outline the strategy and key content points for this draft:`;
       researcherResponse = cleanEmDashes(researcherResponse);
       logs.push(cleanEmDashes("[Researcher] Completed analysis. Strategic Outline:"));
       logs.push(researcherResponse);
-    } catch (e: any) {
-      console.error("[Researcher] Error:", e);
-      return NextResponse.json({ success: false, error: `Researcher failed: ${e.message}`, logs }, { status: 500 });
+    } catch (e) {
+      log.error("[Researcher] Error:", e);
+      return NextResponse.json({ success: false, error: `Researcher failed`, logs }, { status: 500 });
     }
 
     // --- Phase 2: Writer Agent ---
@@ -118,9 +119,9 @@ Please compose the draft:`;
       writerResponse = cleanEmDashes(writerResponse);
       logs.push(cleanEmDashes("[Writer] Completed initial draft:"));
       logs.push(writerResponse);
-    } catch (e: any) {
-      console.error("[Writer] Error:", e);
-      return NextResponse.json({ success: false, error: `Writer failed: ${e.message}`, logs }, { status: 500 });
+    } catch (e) {
+      log.error("[Writer] Error:", e);
+      return NextResponse.json({ success: false, error: `Writer failed`, logs }, { status: 500 });
     }
 
     // --- Phase 3: Editor Agent ---
@@ -153,9 +154,9 @@ Please output the final polished copy now:`;
       ], model);
       editorResponse = cleanEmDashes(editorResponse);
       logs.push(cleanEmDashes("[Editor] Completed final polish. Output verified."));
-    } catch (e: any) {
-      console.error("[Editor] Error:", e);
-      return NextResponse.json({ success: false, error: `Editor failed: ${e.message}`, logs }, { status: 500 });
+    } catch (e) {
+      log.error("[Editor] Error:", e);
+      return NextResponse.json({ success: false, error: `Editor failed`, logs }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -163,8 +164,8 @@ Please output the final polished copy now:`;
       logs,
       draft: editorResponse
     });
-  } catch (err: any) {
-    console.error("[api/swarm/run] POST error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/swarm/run] POST error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

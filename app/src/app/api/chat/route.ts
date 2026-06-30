@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { buildContextChunks, retrieveChunksHybrid } from "@/lib/rag";
 import { ollamaChat, ollamaStatus } from "@/lib/ollama";
-import { condenseHistory } from "@/lib/ai";
+import { condenseHistory, type ChatMessage } from "@/lib/ai";
 import { searchMemory, addMemory, formatMemoriesForPrompt } from "@/lib/mem0";
 
 export async function POST(req: Request) {
@@ -61,7 +63,7 @@ ${contextStr}
 `;
 
     // 4. Format Messages
-    const chatMessages: any[] = [
+    const chatMessages: ChatMessage[] = [
       { role: "system", content: systemPrompt }
     ];
 
@@ -92,8 +94,8 @@ ${contextStr}
       host: status.host
     });
 
-  } catch (err: any) {
-    console.error("Chat API Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("Chat API Error:", err);
+    return serverError(err);
   }
 }

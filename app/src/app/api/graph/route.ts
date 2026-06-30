@@ -1,12 +1,62 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
+
+interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+  color: string;
+  val: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  type: string;
+}
+
+interface ValueRow {
+  id: number;
+  label: string;
+}
+
+interface PersonRow {
+  id: number;
+  name: string;
+}
+
+interface ProjectRow {
+  id: number;
+  name: string;
+}
+
+interface HabitRow {
+  id: number;
+  title: string;
+  linked_value_id: number | null;
+}
+
+interface TaskRow {
+  id: number;
+  title: string;
+  project_id: number | null;
+}
+
+interface EventRow {
+  id: number;
+  title: string;
+  linked_people: string | null;
+  linked_task_id: number | null;
+}
 
 export async function GET() {
   try {
     const db = getDB();
-    
-    const nodes: any[] = [];
-    const links: any[] = [];
+
+    const nodes: GraphNode[] = [];
+    const links: GraphLink[] = [];
 
     // Colors mapping
     const colors = {
@@ -23,7 +73,7 @@ export async function GET() {
     nodes.push({ id: "SELF", label: "Me", type: "self", color: colors.self, val: 5 });
 
     // 2. Values
-    const values = db.prepare("SELECT id, label FROM identity_values").all() as any[];
+    const values = db.prepare("SELECT id, label FROM identity_values").all() as ValueRow[];
     for (const v of values) {
       const id = `value_${v.id}`;
       nodes.push({ id, label: v.label, type: "value", color: colors.value, val: 3 });
@@ -31,7 +81,7 @@ export async function GET() {
     }
 
     // 3. People
-    const people = db.prepare("SELECT id, name FROM people").all() as any[];
+    const people = db.prepare("SELECT id, name FROM people").all() as PersonRow[];
     for (const p of people) {
       const id = `person_${p.id}`;
       nodes.push({ id, label: p.name, type: "person", color: colors.person, val: 2 });
@@ -39,7 +89,7 @@ export async function GET() {
     }
 
     // 4. Projects
-    const projects = db.prepare("SELECT id, name FROM task_projects").all() as any[];
+    const projects = db.prepare("SELECT id, name FROM task_projects").all() as ProjectRow[];
     for (const p of projects) {
       const id = `project_${p.id}`;
       nodes.push({ id, label: p.name, type: "project", color: colors.project, val: 3 });
@@ -49,7 +99,7 @@ export async function GET() {
     // 5. Habits
     // (We wrap in try-catch in case tables are missing if they haven't migrated)
     try {
-      const habits = db.prepare("SELECT id, title, linked_value_id FROM habits").all() as any[];
+      const habits = db.prepare("SELECT id, title, linked_value_id FROM habits").all() as HabitRow[];
       for (const h of habits) {
         const id = `habit_${h.id}`;
         nodes.push({ id, label: h.title, type: "habit", color: colors.habit, val: 2 });
@@ -63,7 +113,7 @@ export async function GET() {
 
     // 6. Tasks
     try {
-      const tasks = db.prepare("SELECT id, title, project_id FROM tasks").all() as any[];
+      const tasks = db.prepare("SELECT id, title, project_id FROM tasks").all() as TaskRow[];
       for (const t of tasks) {
         const id = `task_${t.id}`;
         nodes.push({ id, label: t.title, type: "task", color: colors.task, val: 1 });
@@ -77,7 +127,7 @@ export async function GET() {
 
     // 7. Events & Connections
     try {
-      const events = db.prepare("SELECT id, title, linked_people, linked_task_id FROM calendar_events").all() as any[];
+      const events = db.prepare("SELECT id, title, linked_people, linked_task_id FROM calendar_events").all() as EventRow[];
       for (const e of events) {
         const id = `event_${e.id}`;
         nodes.push({ id, label: e.title, type: "event", color: colors.event, val: 2 });
@@ -85,7 +135,7 @@ export async function GET() {
 
         // Connect event to people
         if (e.linked_people) {
-          const pIds = JSON.parse(e.linked_people);
+          const pIds = JSON.parse(e.linked_people) as (number | string)[];
           for (const pid of pIds) {
             links.push({ source: id, target: `person_${pid}`, type: "involves" });
           }
@@ -99,8 +149,8 @@ export async function GET() {
     } catch {}
 
     return NextResponse.json({ nodes, links });
-  } catch (err: any) {
-    console.error("Graph API Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("Graph API Error:", err);
+    return serverError(err);
   }
 }

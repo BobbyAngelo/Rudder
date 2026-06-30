@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import Database from "better-sqlite3";
 import { join } from "path";
 import { readFileSync } from "fs";
@@ -13,7 +15,12 @@ function generateUUID() {
 
 export async function POST(req: Request) {
   try {
-    const payload = await req.json();
+    const payload = await req.json() as {
+      property_id?: string;
+      webhook_secret?: string;
+      event_type?: string;
+      data?: unknown;
+    };
 
     const { property_id, webhook_secret, event_type, data } = payload;
 
@@ -23,9 +30,14 @@ export async function POST(req: Request) {
 
     // 1. Verify Property and Secret
     const propsPath = join(process.cwd(), "..", "data", "business", "properties.json");
-    const propsData = JSON.parse(readFileSync(propsPath, "utf8"));
-    
-    const property = propsData.properties.find((p: any) => p.id === property_id);
+    interface PropertyConfig {
+      id: string;
+      webhook_secret: string;
+      ingest_types?: string[];
+    }
+    const propsData = JSON.parse(readFileSync(propsPath, "utf8")) as { properties: PropertyConfig[] };
+
+    const property = propsData.properties.find((p) => p.id === property_id);
     
     if (!property) {
       return NextResponse.json({ error: "Unknown property" }, { status: 404 });
@@ -37,7 +49,7 @@ export async function POST(req: Request) {
 
     // Optional: Check if the event type is allowed for this property
     if (property.ingest_types && !property.ingest_types.includes(event_type)) {
-      console.warn(`[Ingest] Unmapped event type '${event_type}' for property '${property_id}'`);
+      log.warn(`[Ingest] Unmapped event type '${event_type}' for property '${property_id}'`);
     }
 
     // 2. Inject into the 10D Reality Ledger
@@ -64,15 +76,15 @@ export async function POST(req: Request) {
 
     db.close();
 
-    console.log(`[Ingest Success] ${event_type} from ${property_id}`);
+    log.info(`[Ingest Success] ${event_type} from ${property_id}`);
 
     return NextResponse.json({ 
       success: true, 
       message: "Data successfully ingested into Rudder OS" 
     }, { status: 201 });
 
-  } catch (error: any) {
-    console.error("[Ingest Error]:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[Ingest Error]:", error);
+    return serverError(error);
   }
 }

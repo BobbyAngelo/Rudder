@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
 
 // Non-negotiable: Standard hyphens, colons, or parentheses only. Zero em-dashes.
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json() as { triggerEvent?: string; payload?: Record<string, unknown> };
     const { triggerEvent, payload } = body;
 
     if (!triggerEvent || !payload) {
@@ -15,7 +17,15 @@ export async function POST(req: NextRequest) {
     const db = getDB();
 
     if (triggerEvent === "BOOKING_CREATED") {
-      const { title, description, startTime, endTime, location, uid, attendees } = payload;
+      const { title, description, startTime, endTime, location, uid, attendees } = payload as {
+        title?: string;
+        description?: string;
+        startTime?: string;
+        endTime?: string;
+        location?: string;
+        uid?: string;
+        attendees?: { name?: string; email?: string }[];
+      };
 
       if (!title || !startTime) {
         return NextResponse.json({ error: "Missing booking title or startTime" }, { status: 400 });
@@ -34,7 +44,7 @@ export async function POST(req: NextRequest) {
       // Compile detailed description including attendees list
       let attendeeList = "";
       if (Array.isArray(attendees) && attendees.length > 0) {
-        attendeeList = "\n\nAttendees:\n" + attendees.map((a: any) => `  - ${a.name || "Unknown"} (${a.email || "No email"})`).join("\n");
+        attendeeList = "\n\nAttendees:\n" + attendees.map((a) => `  - ${a.name || "Unknown"} (${a.email || "No email"})`).join("\n");
       }
 
       const fullDescription = `${description || ""}${attendeeList}\n\nCal.com UID: ${uid}`;
@@ -54,7 +64,7 @@ export async function POST(req: NextRequest) {
         location || "Online"
       );
 
-      console.log(`[cal.com webhook] Synced BOOKING_CREATED: ${title} (${uid})`);
+      log.info(`[cal.com webhook] Synced BOOKING_CREATED: ${title} (${uid})`);
       return NextResponse.json({ success: true, action: "BOOKING_CREATED", uid });
     } 
     
@@ -71,14 +81,14 @@ export async function POST(req: NextRequest) {
         WHERE description LIKE ?
       `).run(`%Cal.com UID: ${uid}%`);
 
-      console.log(`[cal.com webhook] Synced BOOKING_CANCELLED: Deleted ${result.changes} records for UID (${uid})`);
+      log.info(`[cal.com webhook] Synced BOOKING_CANCELLED: Deleted ${result.changes} records for UID (${uid})`);
       return NextResponse.json({ success: true, action: "BOOKING_CANCELLED", uid, deletedCount: result.changes });
     }
 
     return NextResponse.json({ message: `Trigger event '${triggerEvent}' ignored.` });
 
-  } catch (err: any) {
-    console.error("[cal.com webhook] Synchronization error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[cal.com webhook] Synchronization error:", err);
+    return serverError(err);
   }
 }

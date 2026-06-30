@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "../../../../lib/db";
+import { deviceTokenValid } from "../../../../lib/device-auth";
 import * as crypto from "crypto";
 
 /* ═══════════════════════════════════════════════════════
@@ -9,7 +12,16 @@ import * as crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    if (!deviceTokenValid(req)) {
+      return NextResponse.json({ error: "Unauthorized device" }, { status: 401 });
+    }
+
+    const body = await req.json() as {
+      device_id?: string;
+      metrics?: Record<string, number | undefined>;
+      timestamp?: string;
+      classification?: string;
+    };
     const { device_id, metrics, timestamp, classification } = body;
 
     if (!device_id || !metrics || typeof metrics !== "object") {
@@ -49,7 +61,7 @@ export async function POST(req: NextRequest) {
     const sleep = metrics.sleep_hours ?? metrics.sleep;
 
     if (hr !== undefined || hrv !== undefined || steps !== undefined || sleep !== undefined) {
-      console.log(`[telemetry-gate] Extracted biometric state from device "${device_id}"`);
+      log.info(`[telemetry-gate] Extracted biometric state from device "${device_id}"`);
 
       db.prepare(`
         INSERT INTO health_metrics (date, resting_hr, hrv, steps, sleep_hours)
@@ -72,7 +84,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[telemetry-gate] ✅ Successfully processed telemetry stream from "${device_id}"`);
+    log.info(`[telemetry-gate] ✅ Successfully processed telemetry stream from "${device_id}"`);
 
     return NextResponse.json({
       success: true,
@@ -80,8 +92,8 @@ export async function POST(req: NextRequest) {
       eventId
     });
 
-  } catch (error: any) {
-    console.error("POST /api/ingest/telemetry Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("POST /api/ingest/telemetry Error:", error);
+    return serverError(error);
   }
 }

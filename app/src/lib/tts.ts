@@ -1,4 +1,5 @@
-import { exec, execSync } from "child_process";
+import { exec } from "child_process";
+import { log } from "./logger";
 import * as fs from "fs";
 import * as path from "path";
 import { getDB } from "./db";
@@ -21,7 +22,7 @@ export interface TTSOptions {
 export function playNativeSpeech(text: string): Promise<boolean> {
   return new Promise((resolve) => {
     if (process.platform !== "darwin") {
-      console.log(`[tts-native] (Platform non-macOS) Speaking: "${text}"`);
+      log.info(`[tts-native] (Platform non-macOS) Speaking: "${text}"`);
       return resolve(true);
     }
     
@@ -29,7 +30,7 @@ export function playNativeSpeech(text: string): Promise<boolean> {
     const safeText = text.replace(/["'$`\\]/g, "");
     exec(`say "${safeText}"`, (err) => {
       if (err) {
-        console.warn(`[tts-native] Failed executing say command: ${err.message}`);
+        log.warn(`[tts-native] Failed executing say command: ${err.message}`);
         return resolve(false);
       }
       resolve(true);
@@ -57,13 +58,13 @@ async function runRemoteF5(text: string, refAudio: string, refText: string): Pro
   const cleanRemoteCommand = `ssh case "rm -f ${remoteTempWav}"`;
 
   return new Promise((resolve, reject) => {
-    console.log("[tts-f5] Triggering remote F5-TTS voice synthesis on CASE...");
+    log.info("[tts-f5] Triggering remote F5-TTS voice synthesis on CASE...");
     exec(sshCommand, (sshErr) => {
       if (sshErr) {
         return reject(new Error(`SSH Voice Synthesis failed: ${sshErr.message}`));
       }
 
-      console.log("[tts-f5] Copying synthesized voice file from CASE to TARS...");
+      log.info("[tts-f5] Copying synthesized voice file from CASE to TARS...");
       exec(scpCommand, (scpErr) => {
         if (scpErr) {
           // Cleanup remote file before failing
@@ -77,10 +78,10 @@ async function runRemoteF5(text: string, refAudio: string, refText: string): Pro
           fs.unlinkSync(localTempWav);
           exec(cleanRemoteCommand);
           
-          console.log("[tts-f5] Successfully retrieved voice synthesis.");
+          log.info("[tts-f5] Successfully retrieved voice synthesis.");
           resolve(buffer);
-        } catch (readErr: any) {
-          reject(new Error(`Failed to read audio buffer: ${readErr.message}`));
+        } catch (readErr) {
+          reject(new Error(`Failed to read audio buffer: ${(readErr as Error).message}`));
         }
       });
     });
@@ -92,7 +93,7 @@ async function runRemoteF5(text: string, refAudio: string, refText: string): Pro
  */
 async function runLocalOpenAI(text: string, endpoint: string): Promise<Buffer> {
   const ttsUrl = `${endpoint.replace(/\/$/, "")}/v1/audio/speech`;
-  console.log(`[tts-openai] Contacting OpenAI-compatible TTS server at: ${ttsUrl}`);
+  log.info(`[tts-openai] Contacting OpenAI-compatible TTS server at: ${ttsUrl}`);
 
   const res = await fetch(ttsUrl, {
     method: "POST",
@@ -127,34 +128,39 @@ export async function generateSpeech(options: TTSOptions): Promise<Buffer> {
   let refText = options.refText;
 
   try {
-    const prefs = db.prepare("SELECT tts_provider, tts_endpoint, tts_ref_audio, tts_ref_text FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT tts_provider, tts_endpoint, tts_ref_audio, tts_ref_text FROM user_preferences WHERE id = 1").get() as {
+      tts_provider: string | null;
+      tts_endpoint: string | null;
+      tts_ref_audio: string | null;
+      tts_ref_text: string | null;
+    } | undefined;
     if (prefs) {
-      provider = provider || prefs.tts_provider;
-      endpoint = endpoint || prefs.tts_endpoint;
-      refAudio = refAudio || prefs.tts_ref_audio;
-      refText = refText || prefs.tts_ref_text;
+      provider = provider || prefs.tts_provider || undefined;
+      endpoint = endpoint || prefs.tts_endpoint || undefined;
+      refAudio = refAudio || prefs.tts_ref_audio || undefined;
+      refText = refText || prefs.tts_ref_text || undefined;
     }
   } catch { /* fallback */ }
 
   const activeProvider = provider || "native";
-  console.log(`[tts] Generating speech utilizing active provider: "${activeProvider}"`);
+  log.info(`[tts] Generating speech utilizing active provider: "${activeProvider}"`);
 
   if (activeProvider === "remote_f5") {
     try {
       return await runRemoteF5(options.text, refAudio || "", refText || "");
-    } catch (err: any) {
-      console.warn(`[tts] Remote F5-TTS synthesis failed: ${err.message}. Falling back to native.`);
+    } catch (err) {
+      log.warn(`[tts] Remote F5-TTS synthesis failed: ${(err as Error).message}. Falling back to native.`);
     }
   } else if (activeProvider === "local_openai" && endpoint) {
     try {
       return await runLocalOpenAI(options.text, endpoint);
-    } catch (err: any) {
-      console.warn(`[tts] Local OpenAI compatible synthesis failed: ${err.message}. Falling back to native.`);
+    } catch (err) {
+      log.warn(`[tts] Local OpenAI compatible synthesis failed: ${(err as Error).message}. Falling back to native.`);
     }
   }
 
   // Fallback: Generate mock speech WAV buffer (representing native offline buffer)
-  console.log("[tts] Returning mock WAV buffer for local playing/synthesis.");
+  log.info("[tts] Returning mock WAV buffer for local playing/synthesis.");
   
   // Simple mock WAV header for a 1-second silent audio buffer
   const mockWavHeader = Buffer.from([

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  HardDrive, Server, Cpu, Plus, Settings, CheckCircle2, ChevronLeft,
+  HardDrive, Server, Cpu, Plus, CheckCircle2, ChevronLeft,
   X, Trash2, FolderOpen, Terminal, ChevronDown, Camera, RefreshCw,
   Upload, AlertCircle, Mail, Wifi, Code, Smartphone
 } from "lucide-react";
@@ -25,10 +25,40 @@ const SOURCE_TYPES = [
   { value: "media_folder", label: "Personal Media Folder", icon: Camera },
 ];
 
+interface DataSource {
+  id: number;
+  name: string;
+  type: string;
+  path?: string;
+  status?: string;
+  error_message?: string;
+  last_scanned?: string;
+}
+
+interface McpServer {
+  id: number;
+  name: string;
+  command?: string;
+  args?: string[];
+}
+
+interface ExecutionConfig {
+  default_execution_mode?: string;
+  fallback_execution_mode?: string;
+  inbox_sync_enabled?: boolean;
+  [key: string]: unknown;
+}
+
+interface TelemetryDevice {
+  device_id: string;
+  last_seen: string;
+  [key: string]: unknown;
+}
+
 export default function IntegrationsPage() {
-  const [dataSources, setDataSources] = useState<any[]>([]);
-  const [mcpServers, setMcpServers] = useState<any[]>([]);
-  const [executionMode, setExecutionMode] = useState<any>(null);
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [executionMode, setExecutionMode] = useState<ExecutionConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddSource, setShowAddSource] = useState(false);
   const [showAddMcp, setShowAddMcp] = useState(false);
@@ -46,7 +76,7 @@ export default function IntegrationsPage() {
   const [inboxSyncEnabled, setInboxSyncEnabled] = useState(false);
 
   // Telemetry Gate State
-  const [devices, setDevices] = useState<any[]>([]);
+  const [devices, setDevices] = useState<TelemetryDevice[]>([]);
   const [showSnippet, setShowSnippet] = useState<"arduino" | "python" | null>(null);
 
   const [dragActive, setDragActive] = useState(false);
@@ -159,7 +189,7 @@ export default function IntegrationsPage() {
       });
   }, []);
 
-  async function updateMailSettings(updates: any) {
+  async function updateMailSettings(updates: Record<string, unknown>) {
     await fetch("/api/integrations", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -456,8 +486,11 @@ export default function IntegrationsPage() {
 
 void sendTelemetry(int hr, int hrv, int steps) {
   HTTPClient http;
-  http.begin("http://localhost:3000/api/ingest/telemetry");
+  // Use your computer's LAN IP (not localhost) so the board can reach it.
+  http.begin("http://192.168.1.100:3000/api/ingest/telemetry");
   http.addHeader("Content-Type", "application/json");
+  // Required when RUDDER_DEVICE_TOKEN is set on the server. Omit if it isn't.
+  http.addHeader("X-Device-Token", "YOUR_DEVICE_TOKEN");
 
   String json = "{\\"device_id\\":\\"esp32-sensor\\",\\"metrics\\":{\\"heart_rate\\":" + String(hr) + ",\\"hrv\\":" + String(hrv) + ",\\"steps\\":" + String(steps) + "}}";
   int httpCode = http.POST(json);
@@ -470,15 +503,19 @@ void sendTelemetry(int hr, int hrv, int steps) {
                 {showSnippet === "python" && (
                   <div className="space-y-1.5 animate-fade-in">
                     <pre className="p-3 rounded bg-black/60 border border-[var(--color-border)] font-mono text-[10px] text-[var(--color-text-primary)] overflow-x-auto select-all w-full leading-relaxed">
-{`import urequests, json
+{`import urequests
 
 def send_telemetry(hr, hrv, steps):
-    url = "http://localhost:3000/api/ingest/telemetry"
+    # Use your computer's LAN IP (not localhost) so the board can reach it.
+    url = "http://192.168.1.100:3000/api/ingest/telemetry"
+    # X-Device-Token required when RUDDER_DEVICE_TOKEN is set on the server.
+    headers = {"Content-Type": "application/json",
+               "X-Device-Token": "YOUR_DEVICE_TOKEN"}
     payload = {
         "device_id": "esp32-sensor",
         "metrics": {"heart_rate": hr, "hrv": hrv, "steps": steps}
     }
-    res = urequests.post(url, json=payload)
+    res = urequests.post(url, json=payload, headers=headers)
     res.close()`}
                     </pre>
                   </div>
@@ -518,7 +555,7 @@ def send_telemetry(hr, hrv, steps):
             </Card>
           ) : (
             <div className="space-y-2">
-              {dataSources.map((s: any) => (
+              {dataSources.map((s) => (
                 <Card key={s.id}>
                   <CardBody className="flex items-center justify-between py-3">
                     <div className="flex items-center gap-3">
@@ -597,7 +634,7 @@ def send_telemetry(hr, hrv, steps):
             </Card>
           ) : (
             <div className="space-y-2">
-              {mcpServers.map((srv: any) => (
+              {mcpServers.map((srv) => (
                 <Card key={srv.id}>
                   <CardBody className="flex items-center justify-between py-3">
                     <div className="flex items-center gap-3">

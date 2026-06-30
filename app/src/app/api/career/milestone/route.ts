@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { serverError } from "@/lib/api-error";
+import {
+  createTimelineMilestone,
+  updateTimelineMilestone,
+  deleteTimelineMilestone,
+} from "@/lib/db/career";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,21 +14,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields: company, title, startDate, or endDate" }, { status: 400 });
     }
 
-    const db = getDB();
-    const highlightsJson = JSON.stringify(highlights || []);
-
-    const result = db.prepare(`
-      INSERT INTO career_timeline (company, title, division, start_date, end_date, highlights_json)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(company, title, division || null, startDate, endDate, highlightsJson);
+    const id = createTimelineMilestone({ company, title, division, startDate, endDate, highlights });
 
     return NextResponse.json({
       success: true,
-      id: Number(result.lastInsertRowid),
+      id,
       message: "Timeline milestone created successfully"
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }
 
@@ -35,16 +34,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields: id, company, title, startDate, or endDate" }, { status: 400 });
     }
 
-    const db = getDB();
-    const highlightsJson = JSON.stringify(highlights || []);
+    const changed = updateTimelineMilestone(id, { company, title, division, startDate, endDate, highlights });
 
-    const result = db.prepare(`
-      UPDATE career_timeline
-      SET company = ?, title = ?, division = ?, start_date = ?, end_date = ?, highlights_json = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(company, title, division || null, startDate, endDate, highlightsJson, id);
-
-    if (result.changes === 0) {
+    if (!changed) {
       return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
     }
 
@@ -52,8 +44,8 @@ export async function PUT(req: NextRequest) {
       success: true,
       message: "Timeline milestone updated successfully"
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }
 
@@ -66,10 +58,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing required parameter: id" }, { status: 400 });
     }
 
-    const db = getDB();
-    const result = db.prepare("DELETE FROM career_timeline WHERE id = ?").run(id);
+    const changed = deleteTimelineMilestone(Number(id));
 
-    if (result.changes === 0) {
+    if (!changed) {
       return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
     }
 
@@ -77,7 +68,7 @@ export async function DELETE(req: NextRequest) {
       success: true,
       message: "Timeline milestone deleted successfully"
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }

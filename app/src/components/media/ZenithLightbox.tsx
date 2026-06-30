@@ -102,12 +102,14 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
 
   useEffect(() => {
     // Sync current index state when initialIndex changes
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs internal index to the controlled initialIndex prop
     setCurrentIndex(initialIndex);
   }, [initialIndex]);
 
   // Sync editing fields with active record
   useEffect(() => {
     if (activeRecord) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the edit form fields whenever the active record changes
       setEditTitle(activeRecord.title || "");
       setEditContent(activeRecord.content || "");
       setEditUserTags(activeRecord.userTags || "");
@@ -119,6 +121,40 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
       setEditMode(false); // cancel edit mode on navigation
     }
   }, [currentIndex, activeRecord]);
+
+  const resetVideoState = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setPlaybackSpeed(1.0);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : records.length - 1));
+    resetVideoState();
+  };
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev < records.length - 1 ? prev + 1 : 0));
+    resetVideoState();
+  };
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().catch(console.error);
+      setIsPlaying(true);
+    }
+  };
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -164,41 +200,8 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers are recreated each render; re-subscribing on the listed state values preserves existing behavior
   }, [currentIndex, activeRecord, isMuted, isPlaying, duration]);
-
-  const handlePrev = () => {
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : records.length - 1));
-    resetVideoState();
-  };
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev < records.length - 1 ? prev + 1 : 0));
-    resetVideoState();
-  };
-
-  const resetVideoState = () => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setPlaybackSpeed(1.0);
-  };
-
-  const togglePlay = () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      videoRef.current.play().catch(console.error);
-      setIsPlaying(true);
-    }
-  };
-
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
-  };
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -255,9 +258,9 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
         const error = await res.json();
         alert(`Error saving metadata: ${error.error}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(`Network error: ${err.message}`);
+      alert(`Network error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSaving(false);
     }
@@ -309,9 +312,9 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
         const error = await res.json();
         alert(`Error mapping album: ${error.error}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(`Network error: ${err.message}`);
+      alert(`Network error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setUpdatingAlbums(null);
     }
@@ -375,10 +378,11 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
 
           {/* Render Photo */}
           {activeRecord.type === "photo" && (
-            <img 
-              src={streamUrl} 
-              alt={activeRecord.filename} 
-              className="max-w-full max-h-full object-contain rounded shadow-2xl animate-fade-in pointer-events-none" 
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={streamUrl}
+              alt={activeRecord.filename}
+              className="max-w-full max-h-full object-contain rounded shadow-2xl animate-fade-in pointer-events-none"
             />
           )}
 
@@ -745,7 +749,7 @@ export default function ZenithLightbox({ records, initialIndex, onClose, onRecor
                     </span>
                     {activeRecord.caption && (
                       <div className="text-[11.5px] text-white/90 italic border-l-2 border-orange-500/40 pl-2">
-                        "{activeRecord.caption}"
+                        &quot;{activeRecord.caption}&quot;
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3 text-[11px]">

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { ingestPayload } from "@/lib/ingest";
+import { invalidateContextChunks } from "@/lib/rag";
 
 export async function POST(req: Request) {
   try {
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
         });
       }
       
+      if (successCount > 0) invalidateContextChunks();
       return NextResponse.json({
         success: true,
         summary: `Processed ${body.length} items. Success: ${successCount} (Duplicates/Merged: ${duplicateCount}).`,
@@ -47,13 +50,14 @@ export async function POST(req: Request) {
       if (!res.success) {
         return NextResponse.json(res, { status: 400 });
       }
+      invalidateContextChunks();
       return NextResponse.json(res);
     }
 
-  } catch (error: any) {
-    console.error("POST /api/ingest Error:", error);
+  } catch (error) {
+    log.error("POST /api/ingest Error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { success: false, duplicate: false, message: `Server error: ${error.message}` },
+      { success: false, duplicate: false, message: "Internal server error" },
       { status: 500 }
     );
   }

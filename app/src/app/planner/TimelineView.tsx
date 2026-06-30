@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Clock, MapPin, Trash2, CheckCircle2, Circle, Plus, X, Sparkles, PlusCircle, CheckSquare, Heart, AlertCircle
+  Clock, MapPin, Trash2, CheckCircle2, Circle, Plus, X, Sparkles, PlusCircle, Heart
 } from "lucide-react";
 import { parseCommand, ParsedCommand } from "@/lib/nlp";
 
@@ -40,6 +40,12 @@ interface HealthAppt {
   provider: string;
   specialty: string;
   date: string; // YYYY-MM-DD
+}
+
+interface HealthProvider {
+  name: string;
+  specialty: string;
+  next_appointment: string | null;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -117,11 +123,13 @@ export default function TimelineView() {
       dateCursor.setDate(dateCursor.getDate() + 1);
     }
     return dates;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on todayStr; `today` is a fresh Date each render and would defeat memoization
   }, [todayStr]);
 
   const startRange = horizonDates[0].dateStr;
   const endRange = horizonDates[horizonDates.length - 1].dateStr;
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- setState dispatchers are stable; memoize only on the date range
   const fetchTimelineData = useCallback(async () => {
     try {
       const [calRes, taskRes, healthRes] = await Promise.all([
@@ -139,11 +147,11 @@ export default function TimelineView() {
       if (healthRes) {
         const healthData = await healthRes.json();
         const appts: HealthAppt[] = (healthData.providers || [])
-          .filter((p: any) => p.next_appointment)
-          .map((p: any) => ({
+          .filter((p: HealthProvider) => p.next_appointment)
+          .map((p: HealthProvider) => ({
             provider: p.name,
             specialty: p.specialty,
-            date: p.next_appointment,
+            date: p.next_appointment as string,
           }));
         setHealthAppts(appts);
       }
@@ -155,6 +163,7 @@ export default function TimelineView() {
   }, [startRange, endRange]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch; setState runs after await, not synchronously
     fetchTimelineData();
   }, [fetchTimelineData]);
 
@@ -329,7 +338,7 @@ export default function TimelineView() {
       type: "event" | "task" | "health";
       color?: string;
       isDone?: boolean;
-      originalItem: any;
+      originalItem: CalendarEvent | DueTask | HealthAppt;
     }[] = [];
 
     dateItems.events.forEach(ev => {
@@ -653,7 +662,7 @@ export default function TimelineView() {
                         <span className={`truncate ${item.isDone ? "line-through opacity-55" : ""}`}>{item.title}</span>
                         {item.type === "task" && (
                           <button 
-                            onClick={() => unassignTaskBlock(item.originalItem.id)}
+                            onClick={() => unassignTaskBlock((item.originalItem as DueTask).id)}
                             className="opacity-0 group-hover/slot:opacity-60 hover:!opacity-100 transition-opacity ml-1"
                             title="Unschedule block"
                           >

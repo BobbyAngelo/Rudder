@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
 import * as os from "os";
 
 /* ═══════════════════════════════════════════════════════
    Sovereign Intranet & System Status API Endpoint
    ═══════════════════════════════════════════════════════ */
+
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 
 export async function GET() {
   try {
@@ -16,7 +20,7 @@ export async function GET() {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 1200);
-      const res = await fetch("http://localhost:11434/api/ps", {
+      const res = await fetch(`${OLLAMA_URL}/api/ps`, {
         signal: controller.signal
       });
       clearTimeout(id);
@@ -24,7 +28,7 @@ export async function GET() {
         ollamaOnline = true;
         const data = await res.json();
         if (data.models && Array.isArray(data.models)) {
-          loadedModels = data.models.map((m: any) => m.name);
+          loadedModels = (data.models as { name: string }[]).map((m) => m.name);
         }
       }
     } catch {
@@ -32,7 +36,7 @@ export async function GET() {
       try {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), 1200);
-        const res = await fetch("http://localhost:11434/api/tags", {
+        const res = await fetch(`${OLLAMA_URL}/api/tags`, {
           signal: controller.signal
         });
         clearTimeout(id);
@@ -56,10 +60,10 @@ export async function GET() {
 
     // 3. Sync Daemon Folder Watcher statistics
     const syncWatchers = db.prepare(`
-      SELECT name, type, last_scanned, status 
-      FROM data_sources 
+      SELECT name, type, last_scanned, status
+      FROM data_sources
       ORDER BY last_scanned DESC
-    `).all() as any[];
+    `).all() as { name: string; type: string; last_scanned: string | null; status: string }[];
 
     // 4. Autonomic Swarm stats
     const taskBreakdown = db.prepare(`
@@ -92,8 +96,8 @@ export async function GET() {
         drafts_created: replyDrafts?.count ?? 0,
       }
     });
-  } catch (error: any) {
-    console.error("[status-route] Failed to fetch system stats:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[status-route] Failed to fetch system stats:", error instanceof Error ? error.message : String(error));
+    return serverError(error);
   }
 }

@@ -12,6 +12,15 @@ interface Task {
   sort_order: number; labels: string; created_at: string; updated_at: string;
 }
 
+type TaskFilter = "active" | "all" | "done";
+
+interface TaskCounts {
+  todo: number;
+  in_progress: number;
+  done: number;
+  total: number;
+}
+
 const PRIORITY_CONFIG = [
   { label: "None", color: "transparent" },
   { label: "Low", color: "#60a5fa" },
@@ -20,7 +29,7 @@ const PRIORITY_CONFIG = [
   { label: "Urgent", color: "#ef4444" },
 ];
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   todo: { label: "To Do", color: "#94a3b8", icon: Circle },
   in_progress: { label: "In Progress", color: "#60a5fa", icon: Clock },
   done: { label: "Done", color: "#34d399", icon: CheckCircle2 },
@@ -41,6 +50,7 @@ export function useTaskActions() {
     setLoading(false);
   }, [filter]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch; setState runs after await, not synchronously
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   async function createTask(title: string, priority: number) {
@@ -110,7 +120,7 @@ export function QuickAdd({ onCreate }: { onCreate: (title: string, priority: num
 }
 
 /* ── Filter Tabs ── */
-export function FilterTabs({ filter, setFilter, counts }: { filter: string; setFilter: (f: any) => void; counts: any }) {
+export function FilterTabs({ filter, setFilter, counts }: { filter: string; setFilter: (f: TaskFilter) => void; counts: TaskCounts }) {
   return (
     <div className="flex gap-1 mb-4">
       {(["active", "all", "done"] as const).map((f) => (

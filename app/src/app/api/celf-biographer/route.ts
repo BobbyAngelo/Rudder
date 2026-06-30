@@ -1,8 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
 import { executeChat, ChatMessage } from "@/lib/ai";
 
-export async function POST(req: NextRequest) {
+interface CountRow {
+  count: number;
+}
+
+interface HealthAvgRow {
+  avg_sleep: number;
+  avg_hr: number;
+  avg_hrv: number;
+}
+
+interface FaceNameRow {
+  photo_count: number;
+  person_name: string | null;
+}
+
+interface ExecutionModeRow {
+  default_execution_mode: string | null;
+}
+
+interface IdRow {
+  id: number;
+}
+
+export async function POST() {
   try {
     const db = getDB();
 
@@ -14,19 +39,19 @@ export async function POST(req: NextRequest) {
       SELECT COUNT(*) as count 
       FROM calendar_events 
       WHERE start_date >= ? AND start_date <= ?
-    `).get(quietWeekStart, quietWeekEnd) as any;
+    `).get(quietWeekStart, quietWeekEnd) as CountRow | undefined;
 
     const quietWeekHealth = db.prepare(`
       SELECT AVG(sleep_hours) as avg_sleep, AVG(resting_hr) as avg_hr, AVG(hrv) as avg_hrv
       FROM health_metrics
       WHERE date >= ? AND date <= ?
-    `).get(quietWeekStart, quietWeekEnd) as any;
+    `).get(quietWeekStart, quietWeekEnd) as HealthAvgRow | undefined;
 
     const busyWeekHealth = db.prepare(`
       SELECT AVG(sleep_hours) as avg_sleep, AVG(resting_hr) as avg_hr, AVG(hrv) as avg_hrv
       FROM health_metrics
       WHERE date >= '2026-04-01' AND date <= '2026-04-30' AND (date < ? OR date > ?)
-    `).get(quietWeekStart, quietWeekEnd) as any;
+    `).get(quietWeekStart, quietWeekEnd) as HealthAvgRow | undefined;
 
     const fivePeople = db.prepare(`
       SELECT fc.photo_count, p.name as person_name
@@ -34,7 +59,7 @@ export async function POST(req: NextRequest) {
       LEFT JOIN people p ON fc.person_id = p.id
       ORDER BY fc.photo_count DESC
       LIMIT 5
-    `).all() as any[];
+    `).all() as FaceNameRow[];
 
     const socialNames = fivePeople
       .map(p => p.person_name || "a close unnamed companion")
@@ -51,7 +76,7 @@ export async function POST(req: NextRequest) {
     const busyHR = busyWeekHealth ? parseFloat(busyWeekHealth.avg_hr.toFixed(1)) : 63.0;
 
     /* 2. CHOOSE EXECUTION MODE */
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as ExecutionModeRow | undefined;
     const mode = prefs?.default_execution_mode || "local_ollama";
 
     /* 3. CONSTRUCT THE PRE-WRITING PROMPT */
@@ -73,8 +98,8 @@ Write in a deeply reflective, high-end serif-style prose (the Story of My Life t
     let biographerParagraph = "";
     try {
       biographerParagraph = await executeChat(messages, mode);
-    } catch (err: any) {
-      console.warn("Failed to generate with mode:", mode, err.message);
+    } catch (err) {
+      log.warn("Failed to generate with mode:", mode, err instanceof Error ? err.message : String(err));
       /* Fallback to Gemini if default mode fails */
       biographerParagraph = await executeChat(messages, "cloud_gemini");
     }
@@ -88,7 +113,7 @@ Write in a deeply reflective, high-end serif-style prose (the Story of My Life t
     // Find the Knowledge Base folder to prevent cluttering the root and mixing human notes with AI output
     const kbFolder = db.prepare(
       "SELECT id FROM journal_entries WHERE is_folder = 1 AND (meta_json LIKE '%\"context_type\":\"doing_knowledge_base\"%' OR title = 'Knowledge Base') LIMIT 1"
-    ).get() as any;
+    ).get() as IdRow | undefined;
     const parentId = kbFolder ? kbFolder.id : null;
 
     const insertResult = db.prepare(`
@@ -111,8 +136,8 @@ Write in a deeply reflective, high-end serif-style prose (the Story of My Life t
         busyHR
       }
     });
-  } catch (err: any) {
-    console.error("Biographer Route Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("Biographer Route Error:", err);
+    return serverError(err);
   }
 }

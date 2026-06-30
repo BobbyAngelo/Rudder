@@ -1,6 +1,4 @@
 import { getDB } from "./db";
-import * as path from "path";
-import * as fs from "fs";
 
 /* ═══════════════════════════════════════════════════════
    Database Integrity Check Script (Local to app/src/lib/)
@@ -47,19 +45,23 @@ for (const table of EXPECTED_TABLES) {
       console.log(`✅ Table [${table}] exists. Rows: ${rowCount.count}`);
     } else {
       // Check virtual tables or schema
-      const vInfo = db.prepare(`SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name=?`).get(table) as { count: number };
       console.log(`⚠️ Table [${table}] not found in standard sqlite_master. Checking schema...`);
       failures++;
     }
-  } catch (err: any) {
-    console.error(`❌ Error checking table [${table}]: ${err.message}`);
+  } catch (err) {
+    console.error(`❌ Error checking table [${table}]: ${(err as Error).message}`);
     failures++;
   }
 }
 
 console.log("\n--- Checking User Preferences Configuration ---");
 try {
-  const prefs = db.prepare("SELECT * FROM user_preferences WHERE id = 1").get() as any;
+  const prefs = db.prepare("SELECT * FROM user_preferences WHERE id = 1").get() as {
+    theme: string;
+    enabled_modules: string;
+    default_execution_mode: string;
+    fallback_execution_mode: string;
+  } | undefined;
   if (prefs) {
     console.log("✅ User preferences row 1 exists.");
     console.log(`   Theme: ${prefs.theme}`);
@@ -70,8 +72,8 @@ try {
     console.error("❌ User preferences row 1 is missing!");
     failures++;
   }
-} catch (err: any) {
-  console.error(`❌ Error querying user preferences: ${err.message}`);
+} catch (err) {
+  console.error(`❌ Error querying user preferences: ${(err as Error).message}`);
   failures++;
 }
 
@@ -84,8 +86,8 @@ try {
     console.error(`❌ Foreign key check failed. Found ${fkCheck.length} violations:`, fkCheck);
     failures++;
   }
-} catch (err: any) {
-  console.error(`❌ Error checking foreign keys: ${err.message}`);
+} catch (err) {
+  console.error(`❌ Error checking foreign keys: ${(err as Error).message}`);
   failures++;
 }
 
@@ -93,8 +95,8 @@ console.log("\n--- Checking FTS5 Search Index ---");
 try {
   const count = db.prepare("SELECT count(*) as count FROM search_index").get() as { count: number };
   console.log(`✅ search_index FTS5 virtual table is populated with ${count.count} documents.`);
-} catch (err: any) {
-  console.error(`❌ Error querying search_index: ${err.message}`);
+} catch (err) {
+  console.error(`❌ Error querying search_index: ${(err as Error).message}`);
   failures++;
 }
 

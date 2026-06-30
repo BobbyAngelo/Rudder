@@ -1,4 +1,5 @@
 import { getDB } from "./db";
+import { log } from "./logger";
 import { executeChat, ChatMessage } from "./ai";
 import * as crypto from "crypto";
 
@@ -6,98 +7,126 @@ import * as crypto from "crypto";
    Nightly Correlation Engine (Insights Daemon)
    ═══════════════════════════════════════════════════════ */
 
+interface HealthRecordRow {
+  date: string;
+  type: string;
+  value: number | null;
+  category_value: string | null;
+  unit: string | null;
+}
+
+interface JournalRow {
+  entry_date: string;
+  title: string;
+  content: string;
+}
+
+interface CalendarRow {
+  start_date: string;
+  start_time: string | null;
+  title: string;
+  description: string | null;
+  location: string | null;
+}
+
+interface VoiceRow {
+  log_date: string;
+  title: string;
+  content: string;
+}
+
 async function main() {
-  console.log("[correlation-daemon] Starting analysis loop...");
+  log.info("[correlation-daemon] Starting analysis loop...");
   const db = getDB();
 
   // 1. Fetch preferences for AI execution modes
   let executionMode = "local_ollama";
   try {
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as { default_execution_mode?: string } | undefined;
     if (prefs?.default_execution_mode) {
       executionMode = prefs.default_execution_mode;
     }
   } catch { /* fallback */ }
   
-  console.log(`[correlation-daemon] Using execution mode: ${executionMode}`);
+  log.info(`[correlation-daemon] Using execution mode: ${executionMode}`);
 
   // 2. Fetch health records (last 7 days)
-  const healthData: any[] = [];
+  const healthData: HealthRecordRow[] = [];
   try {
     const records = db.prepare(`
       SELECT date, type, value, category_value, unit
       FROM health_records
       WHERE date >= date('now', '-7 days')
       ORDER BY date ASC
-    `).all() as any[];
+    `).all() as HealthRecordRow[];
     healthData.push(...records);
-  } catch (err: any) {
-    console.warn(`[correlation-daemon] Health records query skipped: ${err.message}`);
+  } catch (err) {
+    log.warn(`[correlation-daemon] Health records query skipped: ${(err as Error).message}`);
   }
 
   // 3. Fetch journal entries (last 7 days, excluding voice captures)
-  const journalData: any[] = [];
+  const journalData: JournalRow[] = [];
   try {
     const entries = db.prepare(`
       SELECT date(created_at) as entry_date, title, content
       FROM journal_entries
       WHERE created_at >= datetime('now', '-7 days') AND (tags NOT LIKE '%"voice"%' OR tags IS NULL)
       ORDER BY created_at ASC
-    `).all() as any[];
+    `).all() as JournalRow[];
     journalData.push(...entries);
-  } catch (err: any) {
-    console.warn(`[correlation-daemon] Journal entries query skipped: ${err.message}`);
+  } catch (err) {
+    log.warn(`[correlation-daemon] Journal entries query skipped: ${(err as Error).message}`);
   }
 
   // 3b. Fetch calendar events (last 7 days)
-  const calendarData: any[] = [];
+  const calendarData: CalendarRow[] = [];
   try {
     const events = db.prepare(`
       SELECT start_date, start_time, title, description, location
       FROM calendar_events
       WHERE start_date >= date('now', '-7 days')
       ORDER BY start_date ASC
-    `).all() as any[];
+    `).all() as CalendarRow[];
     calendarData.push(...events);
-  } catch (err: any) {
-    console.warn(`[correlation-daemon] Calendar events query skipped: ${err.message}`);
+  } catch (err) {
+    log.warn(`[correlation-daemon] Calendar events query skipped: ${(err as Error).message}`);
   }
 
   // 3c. Fetch voice transcripts (last 7 days)
-  const voiceData: any[] = [];
+  const voiceData: VoiceRow[] = [];
   try {
     const voiceLogs = db.prepare(`
       SELECT date(created_at) as log_date, title, content
       FROM journal_entries
       WHERE created_at >= datetime('now', '-7 days') AND tags LIKE '%"voice"%'
       ORDER BY created_at ASC
-    `).all() as any[];
+    `).all() as VoiceRow[];
     voiceData.push(...voiceLogs);
-  } catch (err: any) {
-    console.warn(`[correlation-daemon] Voice logs query skipped: ${err.message}`);
+  } catch (err) {
+    log.warn(`[correlation-daemon] Voice logs query skipped: ${(err as Error).message}`);
   }
 
   if (healthData.length === 0 && journalData.length === 0 && calendarData.length === 0 && voiceData.length === 0) {
-    console.log("[correlation-daemon] No metrics, journals, calendar, or voice data found for the last 7 days. Exiting.");
+    log.info("[correlation-daemon] No metrics, journals, calendar, or voice data found for the last 7 days. Exiting.");
     process.exit(0);
   }
 
   // 4. Format context block for the LLM
-  let healthSummary = healthData.map(h => {
+  const healthSummary = healthData.map(h => {
     const val = h.value !== null ? `${h.value} ${h.unit || ""}` : h.category_value;
     return `- ${h.date}: ${h.type} = ${val}`;
   }).join("\n");
 
-  let journalSummary = journalData.map(j => {
+  const journalSummary = journalData.map(j => {
     return `- ${j.entry_date} [${j.title}]: ${j.content.slice(0, 150)}...`;
   }).join("\n");
 
-  let calendarSummary = calendarData.map(c => {
+  const calendarSummary = calendarData.map(c => {
     const timeStr = c.start_time ? ` at ${c.start_time}` : "";
     return `- ${c.start_date}${timeStr}: ${c.title} (${c.location || "no location"})`;
   }).join("\n");
 
-  let voiceSummary = voiceData.map(v => {
+  const voiceSummary = voiceData.map(v => {
     return `- ${v.log_date} [Voice Log: ${v.title}]: ${v.content}`;
   }).join("\n");
 
@@ -133,19 +162,19 @@ Constraint rules:
   let insightText = "";
   try {
     insightText = await executeChat(messages, executionMode);
-    console.log(`[correlation-daemon] LLM successfully generated insight:\n"${insightText}"`);
-  } catch (err: any) {
-    console.warn(`[correlation-daemon] Local LLM call failed or timed out: ${err.message}`);
+    log.info(`[correlation-daemon] LLM successfully generated insight:\n"${insightText}"`);
+  } catch (err) {
+    log.warn(`[correlation-daemon] Local LLM call failed or timed out: ${(err as Error).message}`);
     
     // Heuristic fallback if LLM is unavailable
-    console.log("[correlation-daemon] Generating heuristic rule-based insight fallback...");
+    log.info("[correlation-daemon] Generating heuristic rule-based insight fallback...");
     const sleepRecords = healthData.filter(h => h.type === "SleepAnalysis");
     const avgSleep = sleepRecords.length > 0
       ? sleepRecords.reduce((acc, curr) => acc + (curr.value || 0), 0) / sleepRecords.length
       : 8.0;
     
     insightText = `Sleep duration remains stable, averaging ${avgSleep.toFixed(1)} hours. Calendar schedule indicates external hardware device assembly sessions. Voice logs capture sequence development discussions. Recommended: schedule focus blocks early in the day following periods of deep sleep.`;
-    console.log(`[correlation-daemon] Fallback Insight: "${insightText}"`);
+    log.info(`[correlation-daemon] Fallback Insight: "${insightText}"`);
   }
 
   // 5. Save the generated insight to the database in reality_nodes
@@ -167,9 +196,9 @@ Constraint rules:
       3 // Impact score
     );
     
-    console.log(`✅ Saved correlation insight node successfully with ID: ${eventId}`);
-  } catch (err: any) {
-    console.error(`❌ Error saving correlation insight to DB: ${err.message}`);
+    log.info(`✅ Saved correlation insight node successfully with ID: ${eventId}`);
+  } catch (err) {
+    log.error(`❌ Error saving correlation insight to DB: ${(err as Error).message}`);
     process.exit(1);
   }
 
@@ -177,6 +206,6 @@ Constraint rules:
 }
 
 main().catch((err) => {
-  console.error("❌ Correlation Daemon failed:", err);
+  log.error("❌ Correlation Daemon failed:", err);
   process.exit(1);
 });

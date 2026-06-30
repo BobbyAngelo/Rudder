@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import {
   Target, Plus, Trash2, Copy, Download, Check, RefreshCw,
-  HelpCircle, Zap, Sparkles, Brain, Terminal, ExternalLink,
-  Eye, BookOpen, Settings, AlertCircle, ChevronRight, Loader2
+  Sparkles, Brain, Terminal,
+  Eye, AlertCircle, Loader2
 } from "lucide-react";
 import { getModuleById } from "@/lib/modules";
 
@@ -29,6 +29,12 @@ interface HarnessSource {
 interface WritingFolder {
   id: number;
   title: string;
+}
+
+interface WritingEntry {
+  id: number;
+  title: string;
+  is_folder: number;
 }
 
 export default function HarnessPage() {
@@ -58,35 +64,21 @@ export default function HarnessPage() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
-  // Load all harnesses and writing folders
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await fetch("/api/harness");
-        const data = await res.json();
-        if (data.success) {
-          setHarnesses(data.harnesses);
-          if (data.harnesses.length > 0) {
-            handleSelectHarness(data.harnesses[0]);
-          }
-        }
-
-        const writingRes = await fetch("/api/writing");
-        const writingData = await writingRes.json();
-        if (writingData.entries) {
-          const folders = writingData.entries
-            .filter((e: any) => e.is_folder === 1)
-            .map((e: any) => ({ id: e.id, title: e.title }));
-          setWritingFolders(folders);
-        }
-      } catch (err) {
-        console.error("Failed to load harnesses:", err);
-      } finally {
-        setLoading(false);
+  const triggerCompile = async (slug: string) => {
+    setCompiling(true);
+    try {
+      const res = await fetch(`/api/harness/compile?slug=${slug}`);
+      const data = await res.json();
+      if (data.success && data.compiled) {
+        setCompiledMarkdown(data.compiled.compiled_markdown);
+        setTokenEstimate(data.compiled.token_estimate);
       }
+    } catch (err) {
+      console.error("Error compiling harness context:", err);
+    } finally {
+      setCompiling(false);
     }
-    loadData();
-  }, []);
+  };
 
   const handleSelectHarness = async (harness: HarnessConfig) => {
     setSelectedHarness(harness);
@@ -111,21 +103,36 @@ export default function HarnessPage() {
     }
   };
 
-  const triggerCompile = async (slug: string) => {
-    setCompiling(true);
-    try {
-      const res = await fetch(`/api/harness/compile?slug=${slug}`);
-      const data = await res.json();
-      if (data.success && data.compiled) {
-        setCompiledMarkdown(data.compiled.compiled_markdown);
-        setTokenEstimate(data.compiled.token_estimate);
+  // Load all harnesses and writing folders
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const res = await fetch("/api/harness");
+        const data = await res.json();
+        if (data.success) {
+          setHarnesses(data.harnesses);
+          if (data.harnesses.length > 0) {
+            handleSelectHarness(data.harnesses[0]);
+          }
+        }
+
+        const writingRes = await fetch("/api/writing");
+        const writingData = await writingRes.json();
+        if (writingData.entries) {
+          const folders = (writingData.entries as WritingEntry[])
+            .filter((e) => e.is_folder === 1)
+            .map((e) => ({ id: e.id, title: e.title }));
+          setWritingFolders(folders);
+        }
+      } catch (err) {
+        console.error("Failed to load harnesses:", err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error compiling harness context:", err);
-    } finally {
-      setCompiling(false);
     }
-  };
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount; handleSelectHarness intentionally excluded to avoid re-fetching the list
+  }, []);
 
   // Toggle active status of a source type
   const handleToggleSource = (sourceType: string, targetId: string | null = null) => {
@@ -195,7 +202,7 @@ export default function HarnessPage() {
         const listData = await listRes.json();
         if (listData.success) {
           setHarnesses(listData.harnesses);
-          const updated = listData.harnesses.find((h: any) => h.id === selectedHarness.id);
+          const updated = listData.harnesses.find((h: HarnessConfig) => h.id === selectedHarness.id);
           if (updated) {
             setSelectedHarness(updated);
           }
@@ -206,8 +213,8 @@ export default function HarnessPage() {
       } else {
         setSaveStatus(`Error: ${data.error}`);
       }
-    } catch (err: any) {
-      setSaveStatus(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      setSaveStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSaving(false);
     }
@@ -243,7 +250,7 @@ export default function HarnessPage() {
         const listData = await listRes.json();
         if (listData.success) {
           setHarnesses(listData.harnesses);
-          const newHarness = listData.harnesses.find((h: any) => h.id === data.id);
+          const newHarness = listData.harnesses.find((h: HarnessConfig) => h.id === data.id);
           if (newHarness) {
             handleSelectHarness(newHarness);
           }
@@ -460,7 +467,7 @@ export default function HarnessPage() {
                       />
                       <div>
                         <div className="text-xs font-bold text-white">Identity Core Profile</div>
-                        <div className="text-[10px] text-text-dim mt-0.5">Robert's bio, location, contact, and website details</div>
+                        <div className="text-[10px] text-text-dim mt-0.5">Robert&apos;s bio, location, contact, and website details</div>
                       </div>
                     </div>
                   </div>

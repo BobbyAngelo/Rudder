@@ -13,7 +13,10 @@
    intentionally excluded from shareable exports.
    ═══════════════════════════════════════════════════════ */
 
+import type Database from "better-sqlite3";
 import { getDB } from "./db";
+
+type DB = Database.Database;
 
 const OKF_VERSION = "0.1";
 
@@ -189,9 +192,84 @@ function safeParseArray(json: string | null | undefined): string[] {
 
 /* ── Concept collectors (per module) ── */
 
-function collectIdentity(db: any, concepts: Concept[]) {
+interface ProfileRow {
+  full_name?: string;
+  display_name?: string;
+  bio?: string;
+  website?: string;
+  location?: string;
+  timezone?: string;
+  updated_at?: string;
+}
+
+interface ValueRow {
+  label: string;
+  description?: string;
+  created_at?: string;
+}
+
+interface MilestoneRow {
+  title: string;
+  description?: string;
+  date?: string;
+  created_at?: string;
+  category?: string;
+}
+
+interface LinkRow {
+  label?: string;
+  platform?: string;
+  url: string;
+}
+
+interface TimelineRow {
+  title: string;
+  company: string;
+  division?: string;
+  start_date: string;
+  end_date: string;
+  updated_at?: string;
+  highlights_json?: string;
+}
+
+interface SkillRow {
+  category: string;
+  skill_name: string;
+}
+
+interface AwardRow {
+  title: string;
+  result: string;
+  org: string;
+  year?: number | null;
+  project: string;
+  award_type?: string;
+  created_at?: string;
+}
+
+interface OriginIpRow {
+  title: string;
+  format: string;
+  status: string;
+  pitched_to?: string;
+}
+
+interface NoteRow {
+  id: number;
+  title: string;
+  content: string;
+  tags?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface ProjectRow {
+  name: string;
+}
+
+function collectIdentity(db: DB, concepts: Concept[]) {
   try {
-    const p = db.prepare("SELECT * FROM identity_profile WHERE id = 1").get() as any;
+    const p = db.prepare("SELECT * FROM identity_profile WHERE id = 1").get() as ProfileRow | undefined;
     if (p && (p.full_name || p.display_name || p.bio)) {
       concepts.push({
         path: "identity/profile.md",
@@ -215,7 +293,7 @@ function collectIdentity(db: any, concepts: Concept[]) {
   } catch { /* table absent */ }
 
   try {
-    const values = db.prepare("SELECT * FROM identity_values ORDER BY priority ASC").all() as any[];
+    const values = db.prepare("SELECT * FROM identity_values ORDER BY priority ASC").all() as ValueRow[];
     for (const v of values) {
       concepts.push({
         path: `identity/values/${slugify(v.label)}.md`,
@@ -230,7 +308,7 @@ function collectIdentity(db: any, concepts: Concept[]) {
   } catch { /* */ }
 
   try {
-    const ms = db.prepare("SELECT * FROM identity_milestones ORDER BY date DESC").all() as any[];
+    const ms = db.prepare("SELECT * FROM identity_milestones ORDER BY date DESC").all() as MilestoneRow[];
     for (const m of ms) {
       concepts.push({
         path: `identity/milestones/${slugify(m.title)}.md`,
@@ -238,14 +316,14 @@ function collectIdentity(db: any, concepts: Concept[]) {
         title: m.title,
         description: m.description ? m.description.slice(0, 140) : undefined,
         timestamp: m.date || m.created_at,
-        tags: ["identity", "milestone", m.category].filter(Boolean),
+        tags: ["identity", "milestone", m.category].filter((t): t is string => Boolean(t)),
         body: [m.description || "", m.date ? `\nDate: ${m.date}` : ""].join("\n").trim(),
       });
     }
   } catch { /* */ }
 
   try {
-    const links = db.prepare("SELECT * FROM identity_links").all() as any[];
+    const links = db.prepare("SELECT * FROM identity_links").all() as LinkRow[];
     if (links.length) {
       concepts.push({
         path: "identity/links.md",
@@ -259,9 +337,9 @@ function collectIdentity(db: any, concepts: Concept[]) {
   } catch { /* */ }
 }
 
-function collectCareer(db: any, concepts: Concept[]) {
+function collectCareer(db: DB, concepts: Concept[]) {
   try {
-    const tl = db.prepare("SELECT * FROM career_timeline ORDER BY start_date DESC").all() as any[];
+    const tl = db.prepare("SELECT * FROM career_timeline ORDER BY start_date DESC").all() as TimelineRow[];
     for (const t of tl) {
       const highlights = safeParseArray(t.highlights_json);
       concepts.push({
@@ -282,7 +360,7 @@ function collectCareer(db: any, concepts: Concept[]) {
   } catch { /* */ }
 
   try {
-    const skills = db.prepare("SELECT * FROM career_skills ORDER BY category, skill_name").all() as any[];
+    const skills = db.prepare("SELECT * FROM career_skills ORDER BY category, skill_name").all() as SkillRow[];
     if (skills.length) {
       const byCat: Record<string, string[]> = {};
       for (const s of skills) (byCat[s.category] ||= []).push(s.skill_name);
@@ -301,7 +379,7 @@ function collectCareer(db: any, concepts: Concept[]) {
   } catch { /* */ }
 
   try {
-    const awards = db.prepare("SELECT * FROM career_awards ORDER BY year DESC").all() as any[];
+    const awards = db.prepare("SELECT * FROM career_awards ORDER BY year DESC").all() as AwardRow[];
     for (const a of awards) {
       concepts.push({
         path: `career/awards/${slugify(`${a.title}-${a.year || ""}`)}.md`,
@@ -309,14 +387,14 @@ function collectCareer(db: any, concepts: Concept[]) {
         title: a.title,
         description: `${a.result} - ${a.org}${a.year ? ` (${a.year})` : ""}.`,
         timestamp: a.year ? `${a.year}-01-01` : a.created_at,
-        tags: ["career", "award", a.award_type].filter(Boolean),
+        tags: ["career", "award", a.award_type].filter((t): t is string => Boolean(t)),
         body: `**${a.title}**\n\nProject: ${a.project}\nOrganization: ${a.org}\nResult: ${a.result}${a.year ? `\nYear: ${a.year}` : ""}`,
       });
     }
   } catch { /* */ }
 
   try {
-    const ips = db.prepare("SELECT * FROM career_original_ip ORDER BY title").all() as any[];
+    const ips = db.prepare("SELECT * FROM career_original_ip ORDER BY title").all() as OriginIpRow[];
     for (const ip of ips) {
       concepts.push({
         path: `career/ip/${slugify(ip.title)}.md`,
@@ -330,17 +408,17 @@ function collectCareer(db: any, concepts: Concept[]) {
   } catch { /* */ }
 }
 
-function collectNotes(db: any, concepts: Concept[]): Map<string, string> {
+function collectNotes(db: DB, concepts: Concept[]): Map<string, string> {
   // Map note title -> slug, so [[wikilinks]] can be rewritten to OKF links.
   const titleToSlug = new Map<string, string>();
-  let notes: any[] = [];
+  let notes: NoteRow[] = [];
   try {
     notes = db.prepare(
       "SELECT id, title, content, tags, created_at, updated_at FROM journal_entries WHERE COALESCE(is_folder, 0) = 0 AND TRIM(content) != ''"
-    ).all() as any[];
+    ).all() as NoteRow[];
   } catch {
     try {
-      notes = db.prepare("SELECT id, title, content, tags, created_at, updated_at FROM journal_entries WHERE TRIM(content) != ''").all() as any[];
+      notes = db.prepare("SELECT id, title, content, tags, created_at, updated_at FROM journal_entries WHERE TRIM(content) != ''").all() as NoteRow[];
     } catch { notes = []; }
   }
 
@@ -355,7 +433,7 @@ function collectNotes(db: any, concepts: Concept[]): Map<string, string> {
   for (const n of notes) {
     const slug = titleToSlug.get((n.title || "").toLowerCase())!;
     // Rewrite Zettelkasten [[Title]] links into OKF cross-links.
-    const body = clean(n.content).replace(/\[\[([^\]]+)\]\]/g, (_m, p1) => {
+    const body = clean(n.content).replace(/\[\[([^\]]+)\]\]/g, (_m: string, p1: string) => {
       const target = titleToSlug.get(String(p1).toLowerCase());
       return target ? `[${p1}](/notes/${target}.md)` : String(p1);
     });
@@ -373,17 +451,17 @@ function collectNotes(db: any, concepts: Concept[]): Map<string, string> {
   return titleToSlug;
 }
 
-function collectKnowledgeGraph(db: any, concepts: Concept[], noteSlugs: Map<string, string>) {
+function collectKnowledgeGraph(db: DB, concepts: Concept[], noteSlugs: Map<string, string>) {
   const valueLinks: string[] = [];
   const projectLines: string[] = [];
 
   try {
-    const values = db.prepare("SELECT label FROM identity_values ORDER BY priority ASC").all() as any[];
+    const values = db.prepare("SELECT label FROM identity_values ORDER BY priority ASC").all() as { label: string }[];
     for (const v of values) valueLinks.push(`- holds value [${v.label}](/identity/values/${slugify(v.label)}.md)`);
   } catch { /* */ }
 
   try {
-    const projects = db.prepare("SELECT name FROM task_projects ORDER BY name").all() as any[];
+    const projects = db.prepare("SELECT name FROM task_projects ORDER BY name").all() as ProjectRow[];
     for (const p of projects) projectLines.push(`- drives project **${p.name}**`);
   } catch { /* */ }
 
@@ -435,7 +513,7 @@ const DEFAULTS: Required<BuildOptions> = {
  *
  * `db` is injectable for testing; defaults to the app database.
  */
-export function buildOKFBundle(options: BuildOptions = {}, db: any = getDB()): OKFFile[] {
+export function buildOKFBundle(options: BuildOptions = {}, db: DB = getDB()): OKFFile[] {
   const opts = { ...DEFAULTS, ...options };
   const concepts: Concept[] = [];
 

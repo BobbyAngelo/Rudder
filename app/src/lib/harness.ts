@@ -1,5 +1,92 @@
 import { getDB } from "./db";
 
+interface HarnessConfigRow {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  target_ai: string;
+  system_instructions: string;
+}
+
+interface HarnessSourceRow {
+  id: number;
+  harness_id: number;
+  source_type: string;
+  source_target_id: string | null;
+  is_active: number;
+  sort_order: number;
+}
+
+interface IdentityProfileRow {
+  full_name: string;
+  display_name: string;
+  bio: string;
+  email: string;
+  phone: string;
+  location: string;
+  timezone: string;
+  date_of_birth: string | null;
+  website: string;
+}
+
+interface IdentityValueRow {
+  label: string;
+  description: string;
+}
+
+interface CareerTimelineRow {
+  title: string;
+  company: string;
+  start_date: string;
+  end_date: string;
+  division: string | null;
+  highlights_json: string | null;
+}
+
+interface CareerSkillRow {
+  category: string;
+  skill_name: string;
+}
+
+interface CareerAwardRow {
+  title: string;
+  project: string;
+  org: string;
+  year: number | null;
+  result: string;
+}
+
+interface JournalDocRow {
+  title: string;
+  content: string;
+}
+
+interface JournalItemRow {
+  title: string;
+  content: string;
+  is_folder: number;
+}
+
+interface BrandContextRow {
+  brand_name: string;
+  lora_trigger: string | null;
+  color_palette: string | null;
+  style_rules: string | null;
+  forbidden_tokens: string | null;
+}
+
+interface HealthMetricRow {
+  date: string;
+  sleep_hours: number | null;
+  resting_hr: number | null;
+  hrv: number | null;
+  steps: number | null;
+  mood: number | null;
+  energy: number | null;
+  notes: string | null;
+}
+
 export interface CompiledHarness {
   id: number;
   name: string;
@@ -29,7 +116,7 @@ export function compileHarnessContext(slug: string): CompiledHarness {
   const db = getDB();
 
   // 1. Fetch config
-  const config = db.prepare("SELECT * FROM harness_configs WHERE slug = ?").get(slug) as any;
+  const config = db.prepare("SELECT * FROM harness_configs WHERE slug = ?").get(slug) as HarnessConfigRow | undefined;
   if (!config) {
     throw new Error(`Harness config not found for slug: ${slug}`);
   }
@@ -37,9 +124,9 @@ export function compileHarnessContext(slug: string): CompiledHarness {
   // 2. Fetch active sources
   const sources = db.prepare(
     "SELECT * FROM harness_sources WHERE harness_id = ? AND is_active = 1 ORDER BY sort_order ASC"
-  ).all(config.id) as any[];
+  ).all(config.id) as HarnessSourceRow[];
 
-  let markdownParts: string[] = [];
+  const markdownParts: string[] = [];
 
   // Add System Instructions at the top
   markdownParts.push(`# SYSTEM ROLE & INSTRUCTIONS\n${cleanText(config.system_instructions)}`);
@@ -48,7 +135,7 @@ export function compileHarnessContext(slug: string): CompiledHarness {
   for (const source of sources) {
     switch (source.source_type) {
       case "identity_profile": {
-        const profile = db.prepare("SELECT * FROM identity_profile WHERE id = 1").get() as any;
+        const profile = db.prepare("SELECT * FROM identity_profile WHERE id = 1").get() as IdentityProfileRow | undefined;
         if (profile) {
           markdownParts.push(
             `# TIER 1: IDENTITY & CORE PROFILE\n` +
@@ -66,7 +153,7 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       }
 
       case "identity_values": {
-        const values = db.prepare("SELECT * FROM identity_values ORDER BY priority ASC, id ASC").all() as any[];
+        const values = db.prepare("SELECT * FROM identity_values ORDER BY priority ASC, id ASC").all() as IdentityValueRow[];
         if (values.length > 0) {
           const valueList = values
             .map((v) => `- **${cleanText(v.label)}**: ${cleanText(v.description)}`)
@@ -77,15 +164,15 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       }
 
       case "career_timeline": {
-        const jobs = db.prepare("SELECT * FROM career_timeline ORDER BY start_date DESC").all() as any[];
+        const jobs = db.prepare("SELECT * FROM career_timeline ORDER BY start_date DESC").all() as CareerTimelineRow[];
         if (jobs.length > 0) {
           const jobList = jobs
             .map((j) => {
               let highlights = "";
               try {
-                const parsed = JSON.parse(j.highlights_json || "[]");
+                const parsed = JSON.parse(j.highlights_json || "[]") as unknown;
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                  highlights = "\n" + parsed.map((h) => `  * ${cleanText(h)}`).join("\n");
+                  highlights = "\n" + parsed.map((h) => `  * ${cleanText(String(h))}`).join("\n");
                 }
               } catch {
                 /* fallback */
@@ -103,7 +190,7 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       }
 
       case "career_skills": {
-        const skills = db.prepare("SELECT * FROM career_skills ORDER BY category ASC, skill_name ASC").all() as any[];
+        const skills = db.prepare("SELECT * FROM career_skills ORDER BY category ASC, skill_name ASC").all() as CareerSkillRow[];
         if (skills.length > 0) {
           // Group by category
           const grouped: Record<string, string[]> = {};
@@ -121,7 +208,7 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       }
 
       case "career_awards": {
-        const awards = db.prepare("SELECT * FROM career_awards ORDER BY year DESC").all() as any[];
+        const awards = db.prepare("SELECT * FROM career_awards ORDER BY year DESC").all() as CareerAwardRow[];
         if (awards.length > 0) {
           const awardList = awards
             .map(
@@ -137,10 +224,10 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "writing_folder": {
         const folderId = source.source_target_id;
         if (folderId) {
-          const folder = db.prepare("SELECT title FROM journal_entries WHERE id = ? AND is_folder = 1").get(folderId) as any;
+          const folder = db.prepare("SELECT title FROM journal_entries WHERE id = ? AND is_folder = 1").get(folderId) as { title: string } | undefined;
           const documents = db.prepare(
             "SELECT title, content FROM journal_entries WHERE parent_id = ? AND is_folder = 0 ORDER BY updated_at DESC"
-          ).all(folderId) as any[];
+          ).all(folderId) as JournalDocRow[];
 
           const folderTitle = folder ? folder.title : `Folder ID ${folderId}`;
           if (documents.length > 0) {
@@ -156,12 +243,12 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "doing_about_me": {
         const targetId = source.source_target_id;
         if (targetId) {
-          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as any;
+          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as JournalItemRow | undefined;
           if (item) {
             if (item.is_folder === 1) {
               const documents = db.prepare(
                 "SELECT title, content FROM journal_entries WHERE parent_id = ? AND is_folder = 0 ORDER BY updated_at DESC"
-              ).all(targetId) as any[];
+              ).all(targetId) as JournalDocRow[];
               if (documents.length > 0) {
                 const docsList = documents
                   .map((d) => `## Profile Document: ${cleanText(d.title)}\n${cleanText(d.content)}`)
@@ -179,12 +266,12 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "doing_frameworks": {
         const targetId = source.source_target_id;
         if (targetId) {
-          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as any;
+          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as JournalItemRow | undefined;
           if (item) {
             if (item.is_folder === 1) {
               const documents = db.prepare(
                 "SELECT title, content FROM journal_entries WHERE parent_id = ? AND is_folder = 0 ORDER BY updated_at DESC"
-              ).all(targetId) as any[];
+              ).all(targetId) as JournalDocRow[];
               if (documents.length > 0) {
                 const docsList = documents
                   .map((d) => `## Framework SOP: ${cleanText(d.title)}\n${cleanText(d.content)}`)
@@ -202,12 +289,12 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "doing_examples": {
         const targetId = source.source_target_id;
         if (targetId) {
-          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as any;
+          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as JournalItemRow | undefined;
           if (item) {
             if (item.is_folder === 1) {
               const documents = db.prepare(
                 "SELECT title, content FROM journal_entries WHERE parent_id = ? AND is_folder = 0 ORDER BY updated_at DESC"
-              ).all(targetId) as any[];
+              ).all(targetId) as JournalDocRow[];
               if (documents.length > 0) {
                 const docsList = documents
                   .map((d) => `## Benchmarks Example: ${cleanText(d.title)}\n${cleanText(d.content)}`)
@@ -225,12 +312,12 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "doing_knowledge_base": {
         const targetId = source.source_target_id;
         if (targetId) {
-          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as any;
+          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as JournalItemRow | undefined;
           if (item) {
             if (item.is_folder === 1) {
               const documents = db.prepare(
                 "SELECT title, content FROM journal_entries WHERE parent_id = ? AND is_folder = 0 ORDER BY updated_at DESC"
-              ).all(targetId) as any[];
+              ).all(targetId) as JournalDocRow[];
               if (documents.length > 0) {
                 const docsList = documents
                   .map((d) => `## Reference Document: ${cleanText(d.title)}\n${cleanText(d.content)}`)
@@ -248,12 +335,12 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "doing_knowledge_map": {
         const targetId = source.source_target_id;
         if (targetId) {
-          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as any;
+          const item = db.prepare("SELECT * FROM journal_entries WHERE id = ?").get(targetId) as JournalItemRow | undefined;
           if (item) {
             if (item.is_folder === 1) {
               const documents = db.prepare(
                 "SELECT title, content FROM journal_entries WHERE parent_id = ? AND is_folder = 0 ORDER BY updated_at DESC"
-              ).all(targetId) as any[];
+              ).all(targetId) as JournalDocRow[];
               if (documents.length > 0) {
                 const docsList = documents
                   .map((d) => `## Schema/Index: ${cleanText(d.title)}\n${cleanText(d.content)}`)
@@ -271,19 +358,19 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       case "brand_context": {
         const brandName = source.source_target_id;
         if (brandName) {
-          const brand = db.prepare("SELECT * FROM brand_contexts WHERE brand_name = ?").get(brandName) as any;
+          const brand = db.prepare("SELECT * FROM brand_contexts WHERE brand_name = ?").get(brandName) as BrandContextRow | undefined;
           if (brand) {
             let styleRules = "";
             let forbiddenTokens = "";
             try {
-              styleRules = JSON.parse(brand.style_rules || "[]").join(", ");
+              styleRules = (JSON.parse(brand.style_rules || "[]") as string[]).join(", ");
             } catch {
-              styleRules = brand.style_rules;
+              styleRules = brand.style_rules || "";
             }
             try {
-              forbiddenTokens = JSON.parse(brand.forbidden_tokens || "[]").join(", ");
+              forbiddenTokens = (JSON.parse(brand.forbidden_tokens || "[]") as string[]).join(", ");
             } catch {
-              forbiddenTokens = brand.forbidden_tokens;
+              forbiddenTokens = brand.forbidden_tokens || "";
             }
 
             markdownParts.push(
@@ -299,7 +386,7 @@ export function compileHarnessContext(slug: string): CompiledHarness {
       }
 
       case "health_vitals": {
-        const metrics = db.prepare("SELECT * FROM health_metrics ORDER BY date DESC LIMIT 7").all() as any[];
+        const metrics = db.prepare("SELECT * FROM health_metrics ORDER BY date DESC LIMIT 7").all() as HealthMetricRow[];
         if (metrics.length > 0) {
           const list = metrics
             .map((m) => {

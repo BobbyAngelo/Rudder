@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
 import { parseCommand } from "@/lib/nlp";
 import { spawn } from "child_process";
@@ -6,7 +8,7 @@ import path from "path";
 
 export async function POST(req: Request) {
   try {
-    const { input } = await req.json();
+    const { input } = await req.json() as { input?: string };
     if (!input || !input.trim()) {
       return NextResponse.json({ error: "Input is required" }, { status: 400 });
     }
@@ -35,8 +37,7 @@ export async function POST(req: Request) {
     // 2. /node command
     if (command.startsWith("/node")) {
       const mode = command.replace(/^\/node\s*/i, "").trim();
-      const validModes = ["local_ollama", "cloud_openai", "cloud_gemini"];
-      
+
       let matchedMode = "";
       if (mode.includes("ollama")) matchedMode = "local_ollama";
       else if (mode.includes("openai") || mode.includes("gpt")) matchedMode = "cloud_openai";
@@ -130,8 +131,8 @@ export async function POST(req: Request) {
       message: `⚠️ Unknown command style. Prefix with /todo, /event, /write, /node, or /scan.`
     });
 
-  } catch (err: any) {
-    console.error("POST /api/command Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("POST /api/command Error:", err);
+    return serverError(err);
   }
 }

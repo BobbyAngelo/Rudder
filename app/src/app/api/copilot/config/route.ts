@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -7,8 +8,8 @@ export async function GET() {
       return NextResponse.json({ error: "GEMINI_API_KEY is not configured in .env.local" }, { status: 404 });
     }
     return NextResponse.json({ geminiApiKey: key });
-  } catch (error: any) {
-    console.error("[api/copilot/config] GET error:", error);
-    return NextResponse.json({ error: error.message || "Failed to retrieve configuration" }, { status: 500 });
+  } catch (error) {
+    log.error("[api/copilot/config] GET error:", error);
+    return NextResponse.json({ error: "Failed to retrieve configuration" }, { status: 500 });
   }
 }

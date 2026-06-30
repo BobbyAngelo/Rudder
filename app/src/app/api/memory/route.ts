@@ -6,6 +6,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import {
   searchMemory,
   getAllMemories,
@@ -42,8 +43,8 @@ export async function POST(request: Request) {
 
     await addMemory(messages);
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }
 

@@ -10,11 +10,31 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   loading: () => <div className="flex-1 flex items-center justify-center text-[var(--color-text-dim)]">Loading Graph Engine...</div>
 });
 
+interface GraphNode {
+  id?: string | number;
+  label?: string;
+  type?: string;
+  color?: string;
+  x?: number;
+  y?: number;
+  __bckgDimensions?: number[];
+}
+
+interface GraphLink {
+  source?: string | number;
+  target?: string | number;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
 export default function KnowledgeGraphPage() {
-  const [data, setData] = useState({ nodes: [], links: [] });
+  const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [hoverNode, setHoverNode] = useState<any>(null);
+  const [hoverNode, setHoverNode] = useState<GraphNode | null>(null);
 
   useEffect(() => {
     // Resize handler
@@ -81,28 +101,32 @@ export default function KnowledgeGraphPage() {
             nodeRelSize={4}
             linkColor={() => "rgba(255,255,255,0.1)"}
             linkWidth={1.5}
-            onNodeHover={setHoverNode}
-            nodeCanvasObject={(node: any, ctx, globalScale) => {
-              const label = node.label;
+            onNodeHover={(node) => setHoverNode((node as GraphNode) ?? null)}
+            nodeCanvasObject={(rawNode, ctx, globalScale) => {
+              const node = rawNode as GraphNode;
+              const label = node.label ?? "";
               const fontSize = 12 / globalScale;
               ctx.font = `${fontSize}px Sans-Serif`;
               const textWidth = ctx.measureText(label).width;
               const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // some padding
 
               ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-              ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+              ctx.fillRect((node.x ?? 0) - bckgDimensions[0] / 2, (node.y ?? 0) - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
 
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillStyle = node.color;
-              ctx.fillText(label, node.x, node.y);
+              ctx.fillStyle = node.color ?? "#fff";
+              ctx.fillText(label, node.x ?? 0, node.y ?? 0);
 
               node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
             }}
-            nodePointerAreaPaint={(node: any, color, ctx) => {
+            nodePointerAreaPaint={(rawNode, color, ctx) => {
+              const node = rawNode as GraphNode;
               ctx.fillStyle = color;
               const bckgDimensions = node.__bckgDimensions;
-              bckgDimensions && ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+              if (bckgDimensions) {
+                ctx.fillRect((node.x ?? 0) - bckgDimensions[0] / 2, (node.y ?? 0) - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+              }
             }}
           />
         )}

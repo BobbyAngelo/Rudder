@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardBody, Badge } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import {
   Heart, Footprints, Flame, Moon, Loader2, Plus, Phone, MapPin, Globe,
   Stethoscope, Calendar, FileText, Pill, Activity, Smartphone,
-  ChevronRight, Search, Pencil, Trash2, Save, X, ExternalLink, Copy, Check,
+  Search, Pencil, Trash2, Save, X, ExternalLink, Copy, Check,
   Zap, AlertCircle, Thermometer, Scale, Sparkles
 } from "lucide-react";
 
@@ -14,6 +14,25 @@ import {
    ═══════════════════════════════════════════════════════ */
 
 type Section = "dashboard" | "doctors" | "medicines" | "appointments" | "results" | "devices";
+
+type BadgeVariant = "success" | "warning" | "danger" | "info" | "neutral";
+
+interface DbSource {
+  source: string;
+  count: number;
+  first_sync?: string;
+  last_sync?: string;
+}
+
+interface ConfigSource {
+  id: number | string;
+  name: string;
+  path: string;
+  type: string;
+  status?: string;
+  last_scanned?: string;
+  created_at?: string;
+}
 
 interface DashboardData {
   totalRecords: number;
@@ -32,9 +51,86 @@ interface DashboardData {
   typeBreakdown: { type: string; count: number }[];
   providers: Provider[];
   documents: HealthDocument[];
-  sources?: any[];
-  dataSources?: any[];
-  latestMetrics?: any;
+  sources?: DbSource[];
+  dataSources?: ConfigSource[];
+  latestMetrics?: LatestMetrics;
+  error?: string;
+}
+
+interface LatestMetrics {
+  date?: string;
+  steps?: number | string | null;
+  sleep_hours?: number | string | null;
+  resting_hr?: number | string | null;
+  hrv?: number | string | null;
+  blood_pressure_systolic?: number | string | null;
+  blood_pressure_diastolic?: number | string | null;
+  blood_glucose?: number | string | null;
+  temperature?: number | string | null;
+  weight?: number | string | null;
+  mood?: number | string | null;
+  energy?: number | string | null;
+  notes?: string | null;
+}
+
+/** Raw payload attached to a list item — varies by section (provider, document, device). */
+interface DeviceRaw {
+  type?: string;
+  name?: string;
+  icon?: string;
+  status?: string;
+  subtitle?: string;
+  lastSync?: string;
+  syncMethod?: string;
+  dataTypes?: string[];
+  notes?: string;
+  integration?: string;
+}
+
+/** Loose record for editable form drafts / selected provider or document rows. */
+interface HealthRecord {
+  id?: number | string;
+  name?: string;
+  specialty?: string;
+  phone?: string | null;
+  address?: string | null;
+  website?: string | null;
+  portal_url?: string | null;
+  notes?: string | null;
+  next_appointment?: string | null;
+  last_visit?: string | null;
+  title?: string;
+  provider?: string;
+  provider_id?: number | string | null;
+  category?: string;
+  file_path?: string | null;
+  document_date?: string | null;
+  [key: string]: string | number | null | undefined;
+}
+
+interface HealthItem {
+  id: string | number;
+  title: string;
+  subtitle: string;
+  badge?: string;
+  badgeVariant?: BadgeVariant;
+  raw: HealthRecord | DeviceRaw;
+}
+
+interface VitalsDraft {
+  date: string;
+  steps: string | number;
+  sleep_hours: string | number;
+  resting_hr: string | number;
+  hrv: string | number;
+  blood_pressure_systolic: string | number;
+  blood_pressure_diastolic: string | number;
+  blood_glucose: string | number;
+  temperature: string | number;
+  weight: string | number;
+  mood: string | number;
+  energy: string | number;
+  notes: string;
 }
 
 interface Provider {
@@ -75,15 +171,15 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(true);
   
   // Selection States
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  
+  const [selectedItem, setSelectedItem] = useState<HealthRecord | null>(null);
+
   // Form States
   const [isAdding, setIsAdding] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<any>({});
+  const [draft, setDraft] = useState<HealthRecord>({});
   const [isLoggingVitals, setIsLoggingVitals] = useState(false);
-  const [vitalsDraft, setVitalsDraft] = useState<any>({
+  const [vitalsDraft, setVitalsDraft] = useState<VitalsDraft>({
     date: new Date().toISOString().split("T")[0],
     steps: "",
     sleep_hours: "",
@@ -119,6 +215,7 @@ export default function HealthPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: show loading spinner before the awaited refresh resolves
     setLoading(true);
     refresh().catch(console.error).finally(() => setLoading(false));
   }, [refresh]);
@@ -274,7 +371,7 @@ export default function HealthPage() {
             <AlertCircle size={24} />
           </div>
           <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-red-400">Database Connection Error</h2>
-          <p className="text-xs text-text-secondary leading-relaxed font-sans">{(data as any).error}</p>
+          <p className="text-xs text-text-secondary leading-relaxed font-sans">{data.error}</p>
           <button
             onClick={refresh}
             className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-background rounded-xl text-xs font-semibold font-mono uppercase tracking-wider transition-all"
@@ -287,10 +384,9 @@ export default function HealthPage() {
   }
 
   // Get items for current section
-  const getItems = (): { id: string | number; title: string; subtitle: string; badge?: string; badgeVariant?: any; raw: any }[] => {
+  const getItems = (): HealthItem[] => {
     const providers = data?.providers || [];
     const documents = data?.documents || [];
-    const totalRecords = data?.totalRecords || 0;
 
     switch (section) {
       case "doctors":
@@ -317,10 +413,10 @@ export default function HealthPage() {
       case "devices":
         const dbSources = data?.sources || [];
         const configSources = data?.dataSources || [];
-        const deviceList: any[] = [];
+        const deviceList: HealthItem[] = [];
 
         // Add database-configured data sources first
-        configSources.forEach((src: any) => {
+        configSources.forEach((src) => {
           deviceList.push({
             id: `config_${src.id}`,
             title: src.name,
@@ -342,12 +438,12 @@ export default function HealthPage() {
         });
 
         // Add dynamic active record sources
-        dbSources.forEach((src: any) => {
+        dbSources.forEach((src) => {
           const sName = src.source;
           let title = sName;
           let icon = "📡";
           let subtitle = "Active Database Source";
-          let badgeVariant = "success";
+          const badgeVariant: BadgeVariant = "success";
           let dataTypes = ["Biometric Records"];
           
           if (sName.toLowerCase().includes("iphone")) {
@@ -527,12 +623,12 @@ export default function HealthPage() {
               </div>
             ) : (
               filteredItems.map(item => {
-                const isSelected = selectedItem?.id === item.raw?.id && !isAdding;
+                const isSelected = selectedItem?.id === (item.raw as HealthRecord)?.id && !isAdding;
                 return (
                   <button
                     key={item.id}
                     onClick={() => {
-                      setSelectedItem(item.raw);
+                      setSelectedItem(item.raw as HealthRecord);
                       setIsAdding(false);
                       setEditing(false);
                     }}
@@ -554,7 +650,7 @@ export default function HealthPage() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[9px] font-mono text-text-muted">
                       <span className="truncate">{item.subtitle}</span>
-                      {item.raw.document_date && <span>{item.raw.document_date}</span>}
+                      {(item.raw as HealthRecord).document_date && <span>{(item.raw as HealthRecord).document_date}</span>}
                     </div>
                   </button>
                 );
@@ -685,7 +781,7 @@ export default function HealthPage() {
                       <Pencil size={11} /> Edit
                     </button>
                     <button
-                      onClick={() => handleDeleteProvider(selectedItem.id)}
+                      onClick={() => handleDeleteProvider(selectedItem.id as number)}
                       className="px-3 py-1.5 border border-red-950/50 bg-red-950/10 hover:bg-red-900/20 text-red-400 rounded-xl text-xs font-mono uppercase tracking-wider transition-all flex items-center gap-1"
                     >
                       <Trash2 size={11} /> Archive
@@ -699,7 +795,7 @@ export default function HealthPage() {
                       label="Phone"
                       value={selectedItem.phone}
                       icon={<Phone size={12} />}
-                      onAction={() => handleCopy(selectedItem.phone, "phone")}
+                      onAction={() => handleCopy(selectedItem.phone as string, "phone")}
                       actionIcon={copiedField === "phone" ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
                     />
                   )}
@@ -708,7 +804,7 @@ export default function HealthPage() {
                       label="Address"
                       value={selectedItem.address}
                       icon={<MapPin size={12} />}
-                      onAction={() => window.open(`https://maps.apple.com/?q=${encodeURIComponent(selectedItem.address)}`)}
+                      onAction={() => window.open(`https://maps.apple.com/?q=${encodeURIComponent(selectedItem.address as string)}`)}
                       actionIcon={<ExternalLink size={11} />}
                     />
                   )}
@@ -717,7 +813,7 @@ export default function HealthPage() {
                       label="Website"
                       value={selectedItem.website}
                       icon={<Globe size={12} />}
-                      onAction={() => window.open(selectedItem.website, "_blank")}
+                      onAction={() => window.open(selectedItem.website as string, "_blank")}
                       actionIcon={<ExternalLink size={11} />}
                     />
                   )}
@@ -726,7 +822,7 @@ export default function HealthPage() {
                       label="Patient Portal"
                       value={selectedItem.portal_url}
                       icon={<Globe size={12} />}
-                      onAction={() => window.open(selectedItem.portal_url, "_blank")}
+                      onAction={() => window.open(selectedItem.portal_url as string, "_blank")}
                       actionIcon={<ExternalLink size={11} />}
                     />
                   )}
@@ -865,8 +961,8 @@ export default function HealthPage() {
                     <div>
                       <h2 className="text-base font-bold text-white">{selectedItem.title}</h2>
                       <div className="mt-1 flex items-center gap-2">
-                        <Badge variant={catVariant(selectedItem.category)}>
-                          {selectedItem.category.replace(/_/g, " ")}
+                        <Badge variant={catVariant(selectedItem.category as string)}>
+                          {(selectedItem.category as string).replace(/_/g, " ")}
                         </Badge>
                         <span className="text-[11px] font-mono text-text-muted">{selectedItem.provider}</span>
                       </div>
@@ -884,7 +980,7 @@ export default function HealthPage() {
                       <Pencil size={11} /> Edit
                     </button>
                     <button
-                      onClick={() => handleDeleteDocument(selectedItem.id)}
+                      onClick={() => handleDeleteDocument(selectedItem.id as number)}
                       className="px-3 py-1.5 border border-red-950/50 bg-red-950/10 hover:bg-red-900/20 text-red-400 rounded-xl text-xs font-mono uppercase tracking-wider transition-all flex items-center gap-1"
                     >
                       <Trash2 size={11} /> Delete
@@ -896,20 +992,20 @@ export default function HealthPage() {
                   {selectedItem.provider_id ? (
                     <ActionField
                       label="Healthcare Provider"
-                      value={selectedItem.provider}
+                      value={selectedItem.provider ?? ""}
                       icon={<Stethoscope size={12} />}
                       onAction={() => {
                         const prov = (data?.providers || []).find(p => p.id === selectedItem.provider_id);
                         if (prov) {
                           setSection("doctors");
-                          setSelectedItem(prov);
+                          setSelectedItem(prov as HealthRecord);
                         }
                       }}
                     />
                   ) : (
                     <ActionField
                       label="Healthcare Provider"
-                      value={selectedItem.provider}
+                      value={selectedItem.provider ?? ""}
                       icon={<Stethoscope size={12} />}
                     />
                   )}
@@ -927,7 +1023,7 @@ export default function HealthPage() {
                   <div className="flex items-center justify-between gap-4 bg-background/80 border border-border rounded-xl px-4 py-2.5">
                     <span className="text-[11px] font-mono text-text-secondary truncate max-w-lg">{selectedItem.file_path}</span>
                     <button
-                      onClick={() => handleCopy(selectedItem.file_path, "path")}
+                      onClick={() => handleCopy(selectedItem.file_path as string, "path")}
                       className="text-text-muted hover:text-emerald-400 transition-all cursor-pointer shrink-0"
                     >
                       {copiedField === "path" ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
@@ -947,7 +1043,7 @@ export default function HealthPage() {
 
           {/* VIEW Wearable Devices status board */}
           {section === "devices" && selectedItem && (
-            <DeviceDetail device={selectedItem} />
+            <DeviceDetail device={selectedItem as DeviceRaw} />
           )}
 
         </div>
@@ -963,7 +1059,7 @@ function DashboardPanel({ data, onLogVitals }: { data: DashboardData; onLogVital
   const { latestStats = {}, weekSteps = [], monthSteps = [], recentSleep = [], typeBreakdown = [], latestMetrics = {} } = data || {};
   
   // Calculate average sleep hours
-  const sleepAvg = recentSleep && recentSleep.length > 0 ? (recentSleep.reduce((a: number, b: any) => a + b.hours, 0) / recentSleep.length) : 0;
+  const sleepAvg = recentSleep && recentSleep.length > 0 ? (recentSleep.reduce((a: number, b: { hours: number }) => a + b.hours, 0) / recentSleep.length) : 0;
   
   const STEP_GOAL = 10000;
   const ENERGY_GOAL = 500;
@@ -1154,7 +1250,7 @@ function DashboardPanel({ data, onLogVitals }: { data: DashboardData; onLogVital
             data={[...recentSleep].reverse()} 
             valueKey="hours"
             colorFn={(v) => v >= 7 ? "#6366f1" : v >= 5.5 ? "#f59e0b" : "#f87171"}
-            labelFn={(d) => d.date ? d.date.split("-")[2] : ""}
+            labelFn={(d) => d.date ? String(d.date).split("-")[2] : ""}
           />
         </div>
 
@@ -1296,7 +1392,7 @@ function ActionField({ label, value, icon, onAction, actionIcon }: ActionFieldPr
 }
 
 // Device configuration details page
-function DeviceDetail({ device }: { device: any }) {
+function DeviceDetail({ device }: { device: DeviceRaw }) {
   const badgeVariants = {
     Active: "success",
     "Setup Required": "warning",
@@ -1322,15 +1418,15 @@ function DeviceDetail({ device }: { device: any }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/50">
-          <ActionField label="Last Scan State" value={device.lastSync} icon={<Calendar size={12} />} />
-          <ActionField label="Ingestion Method" value={device.syncMethod} icon={<Activity size={12} />} />
+          <ActionField label="Last Scan State" value={device.lastSync ?? ""} icon={<Calendar size={12} />} />
+          <ActionField label="Ingestion Method" value={device.syncMethod ?? ""} icon={<Activity size={12} />} />
         </div>
       </div>
 
       <div className="bg-surface/10 border border-border/60 rounded-2xl p-5 space-y-3">
         <span className="text-[10px] font-mono uppercase tracking-wider text-text-muted block">Sovereign Data Types</span>
         <div className="flex flex-wrap gap-1.5">
-          {device.dataTypes.map((dt: string) => (
+          {(device.dataTypes ?? []).map((dt: string) => (
             <span key={dt} className="px-2 py-0.5 rounded-lg text-[9px] font-mono bg-background border border-border text-text-secondary">
               {dt}
             </span>
@@ -1355,7 +1451,7 @@ function DeviceDetail({ device }: { device: any }) {
 
 // Simple form input field
 function FormInput({ label, value, onChange, placeholder, type = "text", required = false }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean;
+  label: string; value: string | number; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -1376,7 +1472,7 @@ function FormInput({ label, value, onChange, placeholder, type = "text", require
 
 // Dynamic trend charts
 function BarChart({ data, valueKey, color, colorFn, labelFn, height = "h-28", gap = "gap-1" }: {
-  data: any[]; valueKey: string; color?: string; colorFn?: (v: number) => string; labelFn?: (d: any) => string; height?: string; gap?: string;
+  data: Record<string, string | number>[]; valueKey: string; color?: string; colorFn?: (v: number) => string; labelFn?: (d: Record<string, string | number>) => string; height?: string; gap?: string;
 }) {
   if (!data || !data.length) {
     return (
@@ -1385,11 +1481,11 @@ function BarChart({ data, valueKey, color, colorFn, labelFn, height = "h-28", ga
       </div>
     );
   }
-  const max = Math.max(...data.map(d => d[valueKey] || 0), 1);
+  const max = Math.max(...data.map(d => Number(d[valueKey]) || 0), 1);
   return (
     <div className={`flex items-end ${gap} ${height} pt-4`}>
       {data.map((d, i) => {
-        const v = d[valueKey] || 0;
+        const v = Number(d[valueKey]) || 0;
         const pct = (v / max) * 100;
         const bg = colorFn ? colorFn(v) : color || "var(--color-accent)";
         return (
@@ -1435,8 +1531,8 @@ function LogVitalsForm({
   onSave,
   saving,
 }: {
-  vitalsDraft: any;
-  onChange: (v: any) => void;
+  vitalsDraft: VitalsDraft;
+  onChange: (v: VitalsDraft) => void;
   onClose: () => void;
   onSave: (e: React.FormEvent) => void;
   saving: boolean;

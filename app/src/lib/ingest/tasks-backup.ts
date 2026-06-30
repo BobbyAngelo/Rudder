@@ -1,4 +1,5 @@
 import * as crypto from "crypto";
+import { log } from "../logger";
 
 /* =======================================================================
    Ingest | Generic Tasks JSON Backup Parser.
@@ -14,14 +15,27 @@ export interface ParsedTask {
   dueDate: string | null; // YYYY-MM-DD
 }
 
+interface RawTaskItem {
+  id?: string | number;
+  content?: string;
+  title?: string;
+  description?: string;
+  notes?: string;
+  checked?: boolean | number;
+  status?: string;
+  priority?: number;
+  due?: string | { date?: string };
+}
+
 export function parseTasksBackup(jsonContent: string): ParsedTask[] {
   const parsedTasks: ParsedTask[] = [];
-  let data: any;
+  let data: unknown;
 
   try {
     data = JSON.parse(jsonContent);
-  } catch (err: any) {
-    console.error(`[tasks-backup] Failed to parse JSON: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`[tasks-backup] Failed to parse JSON: ${message}`);
     return [];
   }
 
@@ -30,8 +44,8 @@ export function parseTasksBackup(jsonContent: string): ParsedTask[] {
 
   // 1. Detect Todoist format: usually a raw array of task items
   if (Array.isArray(data)) {
-    console.log(`[tasks-backup] Ingesting Todoist array backup (${data.length} items)...`);
-    for (const item of data) {
+    log.info(`[tasks-backup] Ingesting Todoist array backup (${data.length} items)...`);
+    for (const item of data as RawTaskItem[]) {
       if (!item || (!item.content && !item.title)) continue;
 
       const title = (item.content || item.title || "").trim();
@@ -66,10 +80,11 @@ export function parseTasksBackup(jsonContent: string): ParsedTask[] {
   } 
   // 2. Detect Google Tasks format: object containing { kind: "tasks#tasks", items: [...] }
   else if (data && typeof data === "object") {
-    const items = data.items || data.tasks || [];
+    const obj = data as { items?: unknown; tasks?: unknown };
+    const items = obj.items || obj.tasks || [];
     if (Array.isArray(items)) {
-      console.log(`[tasks-backup] Ingesting Google Tasks backup (${items.length} items)...`);
-      for (const item of items) {
+      log.info(`[tasks-backup] Ingesting Google Tasks backup (${items.length} items)...`);
+      for (const item of items as RawTaskItem[]) {
         if (!item || (!item.title && !item.content)) continue;
 
         const title = (item.title || item.content || "").trim();

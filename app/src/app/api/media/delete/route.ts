@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import Database from "better-sqlite3";
 import { join } from "path";
 import { existsSync, unlinkSync } from "fs";
+import { getMediaDeleteTarget, deleteMediaRecord } from "@/lib/db/media";
 
 export async function DELETE(req: NextRequest) {
   try {
@@ -19,23 +22,15 @@ export async function DELETE(req: NextRequest) {
     db.pragma("foreign_keys = ON");
 
     // 1. Fetch file path details to enable physical file deletion
-    const fileRow = db.prepare(`
-      SELECT sourceVolume, relativePath 
-      FROM media 
-      WHERE id = ?
-    `).get(id) as { sourceVolume: string, relativePath: string } | undefined;
+    const fileRow = getMediaDeleteTarget(db, id);
 
     if (!fileRow) {
       db.close();
       return NextResponse.json({ error: "Media record not found in index" }, { status: 404 });
     }
 
-    // 2. Safely delete from related/dependent tables first
-    db.prepare("DELETE FROM media_faces WHERE media_id = ?").run(id);
-    db.prepare("DELETE FROM virtual_album_media WHERE media_id = ?").run(id);
-
-    // 3. Delete from primary media table
-    const result = db.prepare("DELETE FROM media WHERE id = ?").run(id);
+    // 2 & 3. Delete dependent face/album rows first, then the primary media row
+    deleteMediaRecord(db, id);
     db.close();
 
     let physicalDeleted = false;
@@ -64,8 +59,11 @@ export async function DELETE(req: NextRequest) {
         try {
           unlinkSync(resolvedPath);
           physicalDeleted = true;
-        } catch (fileErr: any) {
-          console.error(`Failed to delete physical file at ${resolvedPath}:`, fileErr.message);
+        } catch (fileErr) {
+          log.error(
+            `Failed to delete physical file at ${resolvedPath}:`,
+            fileErr instanceof Error ? fileErr.message : String(fileErr),
+          );
         }
       }
     }
@@ -76,8 +74,8 @@ export async function DELETE(req: NextRequest) {
       physicalDeleted,
       physicalPath: resolvedPath
     });
-  } catch (error: any) {
-    console.error("Delete API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("Delete API Error:", error);
+    return serverError(error);
   }
 }

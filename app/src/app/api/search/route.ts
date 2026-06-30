@@ -1,10 +1,67 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import Database from "better-sqlite3";
 
 const DATA_DIR = join(process.cwd(), "..", "data");
 const DB_PATH = join(DATA_DIR, "rudder.db");
+
+interface SearchIndexRow {
+  origin_id: string;
+  origin_table: string;
+  title: string;
+  content: string | null;
+  tags: string;
+  rank: number;
+}
+
+interface BusinessDoc {
+  title?: string;
+  type?: string;
+}
+
+interface CareerTimelineEntry {
+  title?: string;
+  company?: string;
+  period?: string;
+  role?: string;
+}
+
+interface CareerProduction {
+  title?: string;
+  client?: string;
+}
+
+interface CareerData {
+  timeline?: CareerTimelineEntry[];
+  productions?: CareerProduction[];
+}
+
+interface HardwareNode {
+  name?: string;
+  hw?: string;
+  role?: string;
+}
+
+interface HardwareProject {
+  name?: string;
+  files?: number;
+}
+
+interface HardwareData {
+  cluster?: HardwareNode[];
+  projects?: HardwareProject[];
+}
+
+interface PropertyEntry {
+  name?: string;
+  tagline?: string;
+}
+
+interface PropertiesData {
+  properties?: PropertyEntry[];
+}
 
 let lastSyncTime = 0;
 const SYNC_INTERVAL_MS = 10000; // Debounce file index sync to every 10 seconds
@@ -53,14 +110,14 @@ function syncStaticFiles(db: Database.Database) {
       }
     }
   } catch (err) {
-    console.error("FTS5 sync: Failed to index wiki:", err);
+    log.error("FTS5 sync: Failed to index wiki:", err);
   }
 
   // 2. Index Business Documents (JSON)
   try {
     const docsPath = join(DATA_DIR, "business/documents.json");
     if (existsSync(docsPath)) {
-      const docs = JSON.parse(readFileSync(docsPath, "utf-8")) || [];
+      const docs = (JSON.parse(readFileSync(docsPath, "utf-8")) || []) as BusinessDoc[];
       for (let i = 0; i < docs.length; i++) {
         const doc = docs[i];
         db.prepare(`
@@ -69,13 +126,13 @@ function syncStaticFiles(db: Database.Database) {
         `).run(`doc_${i}`, doc.title || "Untitled Document", `${doc.type || ""} document`);
       }
     }
-  } catch (err) { /* */ }
+  } catch { /* */ }
 
   // 3. Index Career data (JSON)
   try {
     const careerPath = join(DATA_DIR, "writing/career-data.json");
     if (existsSync(careerPath)) {
-      const career = JSON.parse(readFileSync(careerPath, "utf-8")) || {};
+      const career = (JSON.parse(readFileSync(careerPath, "utf-8")) || {}) as CareerData;
       const timeline = career.timeline || [];
       const productions = career.productions || [];
       
@@ -94,13 +151,13 @@ function syncStaticFiles(db: Database.Database) {
         `).run(`prod_${i}`, p.title, `Production · ${p.client || ""}`);
       }
     }
-  } catch (err) { /* */ }
+  } catch { /* */ }
 
   // 4. Index Hardware projects (JSON)
   try {
     const hwPath = join(DATA_DIR, "business/hardware-registry.json");
     if (existsSync(hwPath)) {
-      const hw = JSON.parse(readFileSync(hwPath, "utf-8")) || {};
+      const hw = (JSON.parse(readFileSync(hwPath, "utf-8")) || {}) as HardwareData;
       const cluster = hw.cluster || [];
       const projects = hw.projects || [];
       
@@ -119,13 +176,13 @@ function syncStaticFiles(db: Database.Database) {
         `).run(`proj_${i}`, proj.name, `Hardware project · ${proj.files || 0} files`);
       }
     }
-  } catch (err) { /* */ }
+  } catch { /* */ }
 
   // 5. Index Properties (JSON)
   try {
     const propsPath = join(DATA_DIR, "business/properties.json");
     if (existsSync(propsPath)) {
-      const props = JSON.parse(readFileSync(propsPath, "utf-8")) || {};
+      const props = (JSON.parse(readFileSync(propsPath, "utf-8")) || {}) as PropertiesData;
       const properties = props.properties || [];
       for (let i = 0; i < properties.length; i++) {
         const p = properties[i];
@@ -135,7 +192,7 @@ function syncStaticFiles(db: Database.Database) {
         `).run(`prop_${i}`, p.name, p.tagline || "");
       }
     }
-  } catch (err) { /* */ }
+  } catch { /* */ }
 
   // 6. Index Identity Master Resume (JSON)
   try {
@@ -148,7 +205,7 @@ function syncStaticFiles(db: Database.Database) {
         VALUES ('master_resume', 'identity', 'Master Resume', ?, '[]')
       `).run(resumeStr.slice(0, 1000));
     }
-  } catch (err) { /* */ }
+  } catch { /* */ }
 
   lastSyncTime = now;
 }
@@ -183,9 +240,14 @@ export async function GET(request: Request) {
       WHERE search_index MATCH ? 
       ORDER BY rank 
       LIMIT 20
-    `).all(cleanQuery) as any[];
+    `).all(cleanQuery) as SearchIndexRow[];
 
-    const results = [];
+    const results: Array<{
+      type: string;
+      title: string;
+      subtitle: string;
+      href: string;
+    }> = [];
 
     for (const row of rows) {
       let type = row.origin_table;
@@ -249,8 +311,8 @@ export async function GET(request: Request) {
       total: results.length
     });
 
-  } catch (error: any) {
-    console.error("Unified search failed:", error);
-    return NextResponse.json({ results: [], error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("Unified search failed:", error);
+    return NextResponse.json({ results: [], error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { getDB } from "@/lib/db";
 
 /* ═══════════════════════════════════════════════════════
@@ -7,13 +8,13 @@ import { getDB } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
-    const { text, seed } = await req.json();
+    const { seed } = await req.json() as { text?: string; seed?: string };
     const db = getDB();
 
     let comfyEndpoint = "";
     let portraitPath = "";
     try {
-      const prefs = db.prepare("SELECT comfy_endpoint, avatar_portrait_path FROM user_preferences WHERE id = 1").get() as any;
+      const prefs = db.prepare("SELECT comfy_endpoint, avatar_portrait_path FROM user_preferences WHERE id = 1").get() as { comfy_endpoint?: string; avatar_portrait_path?: string } | undefined;
       if (prefs) {
         comfyEndpoint = prefs.comfy_endpoint || "";
         portraitPath = prefs.avatar_portrait_path || "";
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 
     // If ComfyUI is configured on CASE, offload the workflow
     if (comfyEndpoint) {
-      console.log(`[avatar-route] Offloading LivePortrait generation to ComfyUI at: ${comfyEndpoint}`);
+      log.info(`[avatar-route] Offloading LivePortrait generation to ComfyUI at: ${comfyEndpoint}`);
       
       try {
         // Trigger the ComfyUI workflow via API. In a real system, we'd submit a prompt JSON.
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
         });
 
         if (statsRes.ok) {
-          console.log("[avatar-route] ComfyUI server is alive and reachable.");
+          log.info("[avatar-route] ComfyUI server is alive and reachable.");
           // Return a mock output URL representing the rendered MP4 file on CASE
           return NextResponse.json({
             provider: "comfy_liveportrait",
@@ -41,8 +42,8 @@ export async function POST(req: Request) {
             portrait_source: portraitPath || "default_portrait.jpg"
           });
         }
-      } catch (err: any) {
-        console.warn(`[avatar-route] Offloading failed: ${err.message}. Cascading to local fallback.`);
+      } catch (err) {
+        log.warn(`[avatar-route] Offloading failed: ${err instanceof Error ? err.message : String(err)}. Cascading to local fallback.`);
       }
     }
 
@@ -50,16 +51,16 @@ export async function POST(req: Request) {
     const userSeed = seed || "Robert";
     const dicebearUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userSeed)}`;
     
-    console.log(`[avatar-route] Returning local DiceBear SVG fallback for seed: "${userSeed}"`);
+    log.info(`[avatar-route] Returning local DiceBear SVG fallback for seed: "${userSeed}"`);
     return NextResponse.json({
       provider: "dicebear_fallback",
       avatar_url: dicebearUrl,
       animated_wave: true
     });
-  } catch (err: any) {
-    console.error("[avatar-route] Failed to generate avatar:", err.message);
+  } catch (err) {
+    log.error("[avatar-route] Failed to generate avatar:", err instanceof Error ? err.message : String(err));
     return NextResponse.json(
-      { error: "Avatar processing failed", details: err.message },
+      { error: "Avatar processing failed" },
       { status: 500 }
     );
   }

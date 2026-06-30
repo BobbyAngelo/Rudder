@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     const db = getDB();
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as { default_execution_mode?: string } | undefined;
     const mode = prefs?.default_execution_mode || "local_ollama";
 
     const messages: ChatMessage[] = condenseHistory([
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       online: true,
       mode
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message, online: false }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error", online: false }, { status: 500 });
   }
 }

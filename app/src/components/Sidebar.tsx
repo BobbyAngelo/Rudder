@@ -32,13 +32,13 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, type ComponentType, type ReactNode } from "react";
 import { MODULE_REGISTRY, getModulesByGroup, type RudderModule } from "@/lib/modules";
 
 /* ═══════════════════════════════════════════════════════
    Icon Map — maps string names from the registry to components
    ═══════════════════════════════════════════════════════ */
-const ICON_MAP: Record<string, any> = {
+const ICON_MAP: Record<string, ComponentType<{ size?: number | string }>> = {
   User, Users, Heart, BookOpen, DollarSign, Briefcase,
   Globe, Lightbulb, PenTool, Film, Workflow, Cpu,
   BarChart3, BookMarked, Trophy, CheckSquare, CalendarDays,

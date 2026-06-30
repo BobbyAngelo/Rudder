@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { log } from "./logger";
 import * as path from "path";
 import { getDB } from "./db";
 import { executeChat, ChatMessage } from "./ai";
@@ -10,6 +11,48 @@ import * as crypto from "crypto";
    ═══════════════════════════════════════════════════════ */
 
 const CACHE_FILE = path.resolve(__dirname, "processed_nodes.json");
+
+interface PrefsRow {
+  default_execution_mode?: string;
+}
+
+interface RealityNodeRow {
+  event_id: string;
+  what_classification: string;
+  why_insight: string | null;
+  raw_blob: string | null;
+}
+
+interface CorrespondenceRow {
+  id: number;
+  sender: string;
+  recipient: string;
+  subject: string | null;
+  body: string;
+  platform: string;
+  decision_log: string | null;
+}
+
+interface PersonRow {
+  id: number;
+  name: string;
+  email: string | null;
+  last_contact: string | null;
+  warmth: number | null;
+}
+
+interface HealthMetricRow {
+  date: string;
+  sleep_hours: number | null;
+  hrv: number | null;
+}
+
+interface TaskRow {
+  id: number;
+  title: string;
+  description: string | null;
+  priority: number;
+}
 
 function loadProcessedCache(): Set<string> {
   if (fs.existsSync(CACHE_FILE)) {
@@ -28,13 +71,13 @@ function saveProcessedCache(cache: Set<string>) {
 }
 
 async function runTaskAllocator() {
-  console.log("[agent-swarm] Scanning reality_nodes for new insights and device logs...");
+  log.info("[agent-swarm] Scanning reality_nodes for new insights and device logs...");
   const db = getDB();
   const cache = loadProcessedCache();
 
   let executionMode = "local_ollama";
   try {
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as PrefsRow | undefined;
     if (prefs?.default_execution_mode) executionMode = prefs.default_execution_mode;
   } catch { /* fallback */ }
 
@@ -45,12 +88,12 @@ async function runTaskAllocator() {
     WHERE what_classification IN ('Correlation Insight', 'Voice Capture', 'Device Telemetry')
     ORDER BY when_timestamp DESC
     LIMIT 10
-  `).all() as any[];
+  `).all() as RealityNodeRow[];
 
   for (const node of nodes) {
     if (cache.has(node.event_id)) continue;
 
-    console.log(`[agent-swarm] Processing new node: [${node.what_classification}] (ID: ${node.event_id})`);
+    log.info(`[agent-swarm] Processing new node: [${node.what_classification}] (ID: ${node.event_id})`);
     
     const contextText = node.why_insight || node.raw_blob || "";
     
@@ -84,7 +127,13 @@ Constraint rules:
     try {
       const response = await executeChat(messages, executionMode);
       const cleanedJson = response.replace(/```json/g, "").replace(/```/g, "").trim();
-      const result = JSON.parse(cleanedJson);
+      const result = JSON.parse(cleanedJson) as {
+        task_needed?: boolean;
+        title?: string;
+        description?: string;
+        priority?: number;
+        due_days_ahead?: number | null;
+      };
 
       if (result.task_needed && result.title) {
         let dueDate: string | null = null;
@@ -103,34 +152,34 @@ Constraint rules:
           result.priority || 1,
           dueDate
         );
-        console.log(`✅ Autonomic Task Swarm created task: "${result.title}" (Priority: ${result.priority})`);
+        log.info(`✅ Autonomic Task Swarm created task: "${result.title}" (Priority: ${result.priority})`);
       } else {
-        console.log(`[agent-swarm] Node did not require an actionable task.`);
+        log.info(`[agent-swarm] Node did not require an actionable task.`);
       }
 
       cache.add(node.event_id);
       saveProcessedCache(cache);
-    } catch (err: any) {
-      console.warn(`[agent-swarm] Failed to parse task allocation: ${err.message}`);
+    } catch (err) {
+      log.warn(`[agent-swarm] Failed to parse task allocation: ${(err as Error).message}`);
     }
   }
 }
 
 async function runAutoReplyDrafting() {
-  console.log("[agent-swarm] Scanning correspondence for incoming messages...");
+  log.info("[agent-swarm] Scanning correspondence for incoming messages...");
   const db = getDB();
   const cache = loadProcessedCache();
 
   let executionMode = "local_ollama";
   try {
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as PrefsRow | undefined;
     if (prefs?.default_execution_mode) executionMode = prefs.default_execution_mode;
   } catch { /* fallback */ }
 
   // Fetch identity profile
   let userName = "Robert";
   try {
-    const profile = db.prepare("SELECT display_name FROM identity_profile WHERE id = 1").get() as any;
+    const profile = db.prepare("SELECT display_name FROM identity_profile WHERE id = 1").get() as { display_name?: string } | undefined;
     if (profile?.display_name) userName = profile.display_name;
   } catch { /* fallback */ }
 
@@ -141,13 +190,13 @@ async function runAutoReplyDrafting() {
     WHERE direction = 'incoming'
     ORDER BY created_at DESC
     LIMIT 5
-  `).all() as any[];
+  `).all() as CorrespondenceRow[];
 
   for (const msg of messagesList) {
     const cacheKey = `reply_draft_${msg.id}`;
     if (cache.has(cacheKey)) continue;
 
-    console.log(`[agent-swarm] Ingesting message from ${msg.sender} on ${msg.platform}...`);
+    log.info(`[agent-swarm] Ingesting message from ${msg.sender} on ${msg.platform}...`);
 
     const prompt = `
 You are drafting an auto-reply message on behalf of ${userName} for this incoming correspondence:
@@ -196,17 +245,17 @@ Constraint rules:
         );
       })();
 
-      console.log(`✅ Autonomic Reply Swarm drafted message to ${msg.sender}:\n"${draftText.trim()}"`);
+      log.info(`✅ Autonomic Reply Swarm drafted message to ${msg.sender}:\n"${draftText.trim()}"`);
       cache.add(cacheKey);
       saveProcessedCache(cache);
-    } catch (err: any) {
-      console.warn(`[agent-swarm] Failed to generate reply draft: ${err.message}`);
+    } catch (err) {
+      log.warn(`[agent-swarm] Failed to generate reply draft: ${(err as Error).message}`);
     }
   }
 }
 
 async function runContactWarmthTracker() {
-  console.log("[agent-swarm] Running contact warmth and last contact updates...");
+  log.info("[agent-swarm] Running contact warmth and last contact updates...");
   const db = getDB();
 
   // Seed contacts if people table is empty
@@ -220,10 +269,10 @@ async function runContactWarmthTracker() {
       INSERT INTO people (name, email, relationship, notes, warmth)
       VALUES ('Marcus', 'marcus@flowagency.co', 'colleague', 'Creative Director', 0.5)
     `).run();
-    console.log("[agent-swarm] Seeded contacts for warmth tracking.");
+    log.info("[agent-swarm] Seeded contacts for warmth tracking.");
   }
 
-  const contacts = db.prepare("SELECT id, name, email, last_contact, warmth FROM people").all() as any[];
+  const contacts = db.prepare("SELECT id, name, email, last_contact, warmth FROM people").all() as PersonRow[];
 
   for (const person of contacts) {
     if (!person.email) continue;
@@ -263,12 +312,12 @@ async function runContactWarmthTracker() {
       WHERE id = ?
     `).run(lastContact, warmth, person.id);
 
-    console.log(`[agent-swarm] Updated contact "${person.name}": Warmth: ${warmth}, Last Contact: ${lastContact || "None"}`);
+    log.info(`[agent-swarm] Updated contact "${person.name}": Warmth: ${warmth}, Last Contact: ${lastContact || "None"}`);
   }
 }
 
 async function runAutonomicRebalancer() {
-  console.log("[agent-swarm] Checking user biometrics for task rebalancing...");
+  log.info("[agent-swarm] Checking user biometrics for task rebalancing...");
   const db = getDB();
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -279,15 +328,15 @@ async function runAutonomicRebalancer() {
       INSERT INTO health_metrics (date, sleep_hours, resting_hr, hrv, steps, mood, energy)
       VALUES (?, 5.2, 72, 35, 4500, 4, 3)
     `).run(todayStr);
-    console.log("[agent-swarm] Seeded fatigued biometric log for today.");
+    log.info("[agent-swarm] Seeded fatigued biometric log for today.");
   }
 
   const health = db.prepare(`
     SELECT date, sleep_hours, hrv 
     FROM health_metrics 
-    ORDER BY date DESC 
+    ORDER BY date DESC
     LIMIT 1
-  `).get() as any;
+  `).get() as HealthMetricRow | undefined;
 
   if (!health) {
     return;
@@ -295,16 +344,16 @@ async function runAutonomicRebalancer() {
 
   const isFatigued = (health.sleep_hours && health.sleep_hours < 6.0) || (health.hrv && health.hrv < 40);
   if (!isFatigued) {
-    console.log(`[agent-swarm] Biometrics are optimal (Sleep: ${health.sleep_hours} hrs, HRV: ${health.hrv}). No rebalancing needed.`);
+    log.info(`[agent-swarm] Biometrics are optimal (Sleep: ${health.sleep_hours} hrs, HRV: ${health.hrv}). No rebalancing needed.`);
     return;
   }
 
-  console.log(`[agent-swarm] ⚠️ Fatigue detected: Sleep: ${health.sleep_hours} hrs, HRV: ${health.hrv}. Evaluation active...`);
+  log.info(`[agent-swarm] ⚠️ Fatigue detected: Sleep: ${health.sleep_hours} hrs, HRV: ${health.hrv}. Evaluation active...`);
 
   // Check if proposals already exist for today
   const existing = db.prepare("SELECT id FROM rebalance_proposals WHERE date = ?").get(todayStr);
   if (existing) {
-    console.log(`[agent-swarm] Rebalance proposals already generated for today (${todayStr}).`);
+    log.info(`[agent-swarm] Rebalance proposals already generated for today (${todayStr}).`);
     return;
   }
 
@@ -312,16 +361,16 @@ async function runAutonomicRebalancer() {
     SELECT id, title, description, priority 
     FROM tasks 
     WHERE status IN ('todo', 'in_progress') AND due_date = ?
-  `).all(todayStr) as any[];
+  `).all(todayStr) as TaskRow[];
 
   if (todayTasks.length === 0) {
-    console.log(`[agent-swarm] No active tasks scheduled for today (${todayStr}).`);
+    log.info(`[agent-swarm] No active tasks scheduled for today (${todayStr}).`);
     return;
   }
 
   let executionMode = "local_ollama";
   try {
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as PrefsRow | undefined;
     if (prefs?.default_execution_mode) executionMode = prefs.default_execution_mode;
   } catch { /* fallback */ }
 
@@ -354,7 +403,10 @@ Output a raw JSON block conforming to this schema:
             { role: "user", content: prompt }
           ];
           const response = await executeChat(messages, executionMode);
-          const result = JSON.parse(response.replace(/```json/g, "").replace(/```/g, "").trim());
+          const result = JSON.parse(response.replace(/```json/g, "").replace(/```/g, "").trim()) as {
+            should_reschedule: boolean;
+            reason: string;
+          };
           shouldReschedule = result.should_reschedule;
           reason = result.reason;
         } catch {
@@ -384,30 +436,30 @@ Output a raw JSON block conforming to this schema:
           VALUES (?, ?, ?, ?, ?)
         `).run(todayStr, task.id, todayStr, bestDateStr, reason);
 
-        console.log(`[agent-swarm] ⚠️ Created rebalance proposal for task "${task.title}": Move to ${bestDateStr} (${reason})`);
+        log.info(`[agent-swarm] ⚠️ Created rebalance proposal for task "${task.title}": Move to ${bestDateStr} (${reason})`);
       }
     }
   }
 }
 
 async function main() {
-  console.log("\n==================================================");
-  console.log("       AUTONOMIC AGENT SWARM (STARTING...)");
-  console.log("==================================================\n");
+  log.info("\n==================================================");
+  log.info("       AUTONOMIC AGENT SWARM (STARTING...)");
+  log.info("==================================================\n");
 
   try {
     await runTaskAllocator();
     await runAutoReplyDrafting();
     await runContactWarmthTracker();
     await runAutonomicRebalancer();
-  } catch (err: any) {
-    console.error("❌ Agent Swarm cycle failed:", err.message);
+  } catch (err) {
+    log.error("❌ Agent Swarm cycle failed:", (err as Error).message);
   }
 
-  console.log("\n[agent-swarm] Operations cycle completed successfully.");
+  log.info("\n[agent-swarm] Operations cycle completed successfully.");
 }
 
 main().catch((err) => {
-  console.error("❌ Swarm process failed:", err);
+  log.error("❌ Swarm process failed:", err);
   process.exit(1);
 });

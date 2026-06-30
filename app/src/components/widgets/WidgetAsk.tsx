@@ -107,6 +107,7 @@ export function WidgetAsk() {
               <div className="flex items-center space-x-3">
                 <div className={`relative w-10 h-10 rounded-full overflow-hidden border transition-all ${isPlaying ? 'ring-2 ring-emerald-400 animate-pulse scale-105' : ''}`}
                   style={{ borderColor: "var(--color-border)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
                 <div className="flex flex-col">

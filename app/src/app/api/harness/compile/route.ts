@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { compileHarnessContext } from "@/lib/harness";
 
 /**
@@ -21,8 +22,8 @@ export async function GET(req: NextRequest) {
       success: true,
       compiled,
     });
-  } catch (err: any) {
-    console.error("[api/harness/compile] GET error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/harness/compile] GET error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

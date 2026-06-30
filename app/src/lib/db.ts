@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { log } from "./logger";
 import path from "path";
 import fs from "fs";
 
@@ -14,20 +15,25 @@ import fs from "fs";
      const rows = db.prepare("SELECT * FROM identity_profile").all();
    ═══════════════════════════════════════════════════════ */
 
-const DB_DIR = path.join(process.cwd(), "..", "data");
-const DB_FILE = path.join(DB_DIR, "rudder.db");
+// Resolved lazily so RUDDER_DATA_DIR can be set before the first getDB() call
+// (used by tests to point at an isolated throwaway database, and by anyone who
+// wants to relocate their data directory).
+function dataDir(): string {
+  return process.env.RUDDER_DATA_DIR || path.join(process.cwd(), "..", "data");
+}
 
 let _db: Database.Database | null = null;
 
 export function getDB(): Database.Database {
   if (_db) return _db;
 
+  const dir = dataDir();
   // Ensure data directory exists
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 
-  _db = new Database(DB_FILE);
+  _db = new Database(path.join(dir, "rudder.db"));
   _db.pragma("journal_mode = WAL");
   _db.pragma("foreign_keys = ON");
 
@@ -35,6 +41,17 @@ export function getDB(): Database.Database {
   runMigrations(_db);
 
   return _db;
+}
+
+/**
+ * Close and reset the singleton connection. Intended for tests that switch
+ * RUDDER_DATA_DIR between database files; not used in normal operation.
+ */
+export function __resetDBForTests(): void {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -51,31 +68,42 @@ function runMigrations(db: Database.Database) {
   `);
 
   const applied = new Set(
-    db
-      .prepare("SELECT name FROM _migrations")
-      .all()
-      .map((r: any) => r.name)
+    (db.prepare("SELECT name FROM _migrations").all() as { name: string }[]).map(
+      (r) => r.name
+    )
   );
 
   for (const migration of MIGRATIONS) {
-    if (!applied.has(migration.name)) {
-      try {
-        db.exec(migration.sql);
-        db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(migration.name);
-        console.log(`[db] Applied migration: ${migration.name}`);
-      } catch (error: any) {
-        const msg = error.message.toLowerCase();
-        if (
-          msg.includes("duplicate column name") || 
-          msg.includes("already exists") || 
-          msg.includes("duplicate column")
-        ) {
-          console.warn(`[db] Migration ${migration.name} warning (already applied manually):`, error.message);
-          db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(migration.name);
-        } else {
-          console.error(`[db] Migration ${migration.name} failed:`, error.message);
-          throw error;
-        }
+    if (applied.has(migration.name)) continue;
+
+    // Apply the schema change and record it as one atomic unit, so a crash or
+    // a failing statement can never leave a half-applied migration that is
+    // also marked as done.
+    const apply = db.transaction(() => {
+      db.exec(migration.sql);
+      db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(migration.name);
+    });
+
+    try {
+      apply();
+      log.info(`[db] Applied migration: ${migration.name}`);
+    } catch (error) {
+      const err = error as { message?: string };
+      // Idempotency: a column/table this migration adds already exists (e.g. it
+      // was applied manually before migration tracking existed). The schema is
+      // already in the desired state, so just record the migration as applied.
+      const msg = String(err?.message ?? "").toLowerCase();
+      const alreadyApplied =
+        msg.includes("duplicate column name") ||
+        msg.includes("duplicate column") ||
+        msg.includes("already exists");
+
+      if (alreadyApplied) {
+        log.warn(`[db] Migration ${migration.name} already present, marking applied:`, err.message);
+        db.prepare("INSERT OR IGNORE INTO _migrations (name) VALUES (?)").run(migration.name);
+      } else {
+        log.error(`[db] Migration ${migration.name} failed:`, err.message);
+        throw error;
       }
     }
   }
@@ -1082,6 +1110,22 @@ const MIGRATIONS: Migration[] = [
     name: "036_data_sources_error_message",
     sql: `
       ALTER TABLE data_sources ADD COLUMN error_message TEXT;
+    `,
+  },
+  {
+    name: "037_presence_telemetry",
+    sql: `
+      -- ── Presence telemetry (ESP32 occupancy/variance sensors) ──
+      CREATE TABLE IF NOT EXISTS presence_telemetry (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sensor_id TEXT NOT NULL,
+        variance REAL NOT NULL,
+        presence_detected INTEGER NOT NULL,
+        raw_data TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_presence_sensor ON presence_telemetry(sensor_id);
+      CREATE INDEX IF NOT EXISTS idx_presence_time ON presence_telemetry(created_at);
     `,
   },
 ];

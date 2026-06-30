@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { executeChat, ChatMessage } from "@/lib/ai";
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import {
+  ensureMediaSchema,
+  listMediaWithFaces,
+  getDayVitals,
+  getChronicleNarrative,
+  getChronicleNarrativeFull,
+  updateChronicleNarrative,
+  insertChronicleNarrative,
+  getDefaultExecutionMode,
+} from "@/lib/db/media";
 
 const MEDIA_DB_PATH = path.join(process.cwd(), "..", "data", "media", "media-index.sqlite");
 
@@ -14,42 +25,7 @@ function getMediaDB(): Database.Database {
   }
   const db = new Database(MEDIA_DB_PATH);
   db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS media (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      path TEXT NOT NULL UNIQUE,
-      filename TEXT,
-      type TEXT,
-      sizeBytes INTEGER,
-      camera TEXT,
-      city TEXT,
-      dateCreated TEXT,
-      favorite INTEGER DEFAULT 0,
-      category TEXT,
-      volume TEXT,
-      youtubeStatus TEXT,
-      unorganized INTEGER DEFAULT 1
-    );
-    CREATE TABLE IF NOT EXISTS media_faces (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      media_id INTEGER,
-      name TEXT,
-      FOREIGN KEY(media_id) REFERENCES media(id)
-    );
-    CREATE TABLE IF NOT EXISTS virtual_albums (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      description TEXT,
-      criteria_json TEXT
-    );
-    CREATE TABLE IF NOT EXISTS virtual_album_media (
-      album_id INTEGER,
-      media_id INTEGER,
-      PRIMARY KEY(album_id, media_id),
-      FOREIGN KEY(album_id) REFERENCES virtual_albums(id),
-      FOREIGN KEY(media_id) REFERENCES media(id)
-    );
-  `);
+  ensureMediaSchema(db);
   return db;
 }
 
@@ -84,6 +60,7 @@ interface PhotoRecord {
   userTags: string | null;
   city: string | null;
   country: string | null;
+  faces: string | null;
 }
 
 interface Journey {
@@ -220,19 +197,12 @@ export async function GET(req: NextRequest) {
     const journeyId = url.searchParams.get("journeyId");
     
     mediaDb = getMediaDB();
-    const db = getDB();
-    
-    // Fetch all photos with dateCreated
-    const rawPhotos = mediaDb.prepare(`
-      SELECT m.*, 
-             (SELECT GROUP_CONCAT(name) FROM media_faces WHERE media_id = m.id) as faces
-      FROM media m
-      WHERE dateCreated IS NOT NULL
-      ORDER BY dateCreated ASC
-    `).all() as any[];
 
-    const photos: PhotoRecord[] = rawPhotos.map(row => ({
-      ...row,
+    // Fetch all photos with dateCreated
+    const rawPhotos = listMediaWithFaces(mediaDb);
+
+    const photos: PhotoRecord[] = rawPhotos.map((row) => ({
+      ...(row as unknown as PhotoRecord),
       favorite: row.favorite || 0,
       hasGeo: row.hasGeo || 0
     }));
@@ -246,7 +216,7 @@ export async function GET(req: NextRequest) {
         .filter(j => j.cities.length > 0 || j.countries.length > 0)
         .map(j => {
           const uniqueFaces = new Set<string>();
-          j.photos.forEach((p: any) => {
+          j.photos.forEach((p) => {
             if (p.faces) {
               p.faces.split(",").forEach((name: string) => uniqueFaces.add(name.trim()));
             }
@@ -280,7 +250,7 @@ export async function GET(req: NextRequest) {
     
     // Calculate the active people on this trip
     const tripPeople = new Set<string>();
-    journey.photos.forEach((p: any) => {
+    journey.photos.forEach((p) => {
       if (p.faces) {
         p.faces.split(",").forEach((name: string) => tripPeople.add(name.trim()));
       }
@@ -324,23 +294,15 @@ export async function GET(req: NextRequest) {
 
       // Faces today
       const dayFacesSet = new Set<string>();
-      dayPhotos.forEach((p: any) => {
+      dayPhotos.forEach((p) => {
         if (p.faces) p.faces.split(",").forEach((name: string) => dayFacesSet.add(name.trim()));
       });
 
       // Vitals today from rudder.db
-      const vitals = db.prepare(`
-        SELECT sleep_hours, resting_hr, hrv 
-        FROM health_metrics 
-        WHERE date = ?
-      `).get(dateStr) as any;
+      const vitals = getDayVitals(dateStr);
 
       // Retrospective essences and AI prose
-      const narrative = db.prepare(`
-        SELECT essence, ai_narrative, manual_prose 
-        FROM chronicle_narratives 
-        WHERE journey_id = ? AND day_index = ?
-      `).get(journeyId, dayIdx + 1) as any;
+      const narrative = getChronicleNarrative(journeyId, dayIdx + 1);
 
       itinerary.push({
         dayIndex: dayIdx + 1,
@@ -370,9 +332,9 @@ export async function GET(req: NextRequest) {
       }
     });
 
-  } catch (error: any) {
-    console.error("GET /api/media/chronicles Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("GET /api/media/chronicles Error:", error);
+    return serverError(error);
   } finally {
     if (mediaDb) mediaDb.close();
   }
@@ -380,7 +342,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDB();
     const body = await req.json();
     const { journeyId, dayIndex, essence, manual_prose, triggerAI, dateStr, cities, people, vitals } = body;
 
@@ -394,7 +355,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Fetch active preference AI mode
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = getDefaultExecutionMode();
     const aiMode = prefs?.default_execution_mode || "local_ollama";
 
     let generatedAiProse = "";
@@ -425,8 +386,12 @@ Write in a warm, descriptive serif-prose. Focus on the sensory experience of the
 
       try {
         generatedAiProse = await executeChat(messages, aiMode);
-      } catch (err: any) {
-        console.warn("AI pre-writer failed with mode:", aiMode, err.message);
+      } catch (err) {
+        log.warn(
+          "AI pre-writer failed with mode:",
+          aiMode,
+          err instanceof Error ? err.message : String(err),
+        );
         // Fallback to Gemini
         generatedAiProse = await executeChat(messages, "cloud_gemini");
       }
@@ -435,30 +400,22 @@ Write in a warm, descriptive serif-prose. Focus on the sensory experience of the
 
     // 4. UPSERT the chronicle narrative record
     // Since SQLITE ALTER table is done, we run direct insert or replace
-    const existing = db.prepare(`
-      SELECT id, essence, ai_narrative, manual_prose 
-      FROM chronicle_narratives 
-      WHERE journey_id = ? AND day_index = ?
-    `).get(journeyId, dayIndex) as any;
+    const existing = getChronicleNarrativeFull(journeyId, dayIndex);
 
     if (existing) {
       const updatedEssence = essence !== undefined ? essence : existing.essence;
       const updatedManualProse = manual_prose !== undefined ? manual_prose : existing.manual_prose;
       const updatedAiProse = triggerAI ? generatedAiProse : existing.ai_narrative;
 
-      db.prepare(`
-        UPDATE chronicle_narratives SET 
-          essence = ?,
-          ai_narrative = ?,
-          manual_prose = ?,
-          updated_at = datetime('now')
-        WHERE id = ?
-      `).run(updatedEssence, updatedAiProse, updatedManualProse, existing.id);
+      updateChronicleNarrative(existing.id, updatedEssence, updatedAiProse, updatedManualProse);
     } else {
-      db.prepare(`
-        INSERT INTO chronicle_narratives (journey_id, day_index, essence, ai_narrative, manual_prose)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(journeyId, dayIndex, essence || "", generatedAiProse, manual_prose || "");
+      insertChronicleNarrative(
+        journeyId,
+        dayIndex,
+        essence || "",
+        generatedAiProse,
+        manual_prose || "",
+      );
     }
 
     return NextResponse.json({
@@ -467,8 +424,8 @@ Write in a warm, descriptive serif-prose. Focus on the sensory experience of the
       ai_narrative: generatedAiProse
     });
 
-  } catch (error: any) {
-    console.error("POST /api/media/chronicles Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("POST /api/media/chronicles Error:", error);
+    return serverError(error);
   }
 }

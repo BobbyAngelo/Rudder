@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
 import { parseCommand } from "@/lib/nlp";
+
+interface CalendarEventRangeRow {
+  start_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  all_day: number | null;
+}
 
 // Helper to calculate duration in hours between two HH:MM strings
 function getDurationHours(startTime: string, endTime: string): number {
@@ -44,7 +52,7 @@ export async function GET() {
 
     const rangeEvents = db.prepare(
       "SELECT * FROM calendar_events WHERE start_date >= ? AND start_date <= ?"
-    ).all(startDate, endDate) as any[];
+    ).all(startDate, endDate) as CalendarEventRangeRow[];
 
     const hoursPerDay: Record<string, number> = {};
     dates.forEach(d => { hoursPerDay[d] = 0; });
@@ -73,14 +81,14 @@ export async function GET() {
     const globalFocusScore = Math.max(0, 100 - averageDensity);
 
     return NextResponse.json({ tasks, events, globalFocusScore });
-  } catch (error: any) {
-    return NextResponse.json({ tasks: [], events: [], globalFocusScore: 100, error: error.message });
+  } catch {
+    return NextResponse.json({ tasks: [], events: [], globalFocusScore: 100 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { name } = await req.json();
+    const { name } = (await req.json()) as { name?: string };
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
     const db = getDB();
@@ -112,7 +120,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, type, id: insertedId, title: parsed.title });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return serverError(error);
   }
 }

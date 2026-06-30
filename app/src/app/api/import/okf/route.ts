@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import AdmZip from "adm-zip";
 import { join } from "path";
 import { writeImportedBundle } from "@/lib/okf-import";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       ...result,
       note: "Imported concepts will be embedded and become searchable on the next query.",
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }

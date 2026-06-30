@@ -12,10 +12,15 @@ import { useState, useEffect } from "react";
    Allows dynamic toggling and ordering of widgets.
    ═══════════════════════════════════════════════════════ */
 
+interface DashboardStats {
+  data_sources?: number;
+  [key: string]: unknown;
+}
+
 export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   
   // Modularity states
   const [activeWidgets, setActiveWidgets] = useState<string[]>([]);
@@ -298,14 +303,8 @@ function SourceCard({
 }) {
   const isConnect = status === "connect";
 
-  const CardWrap = ({ children }: { children: React.ReactNode }) => (
-    <div className={`p-5 rounded-2xl transition-all border ${isConnect ? 'hover:bg-white/5 cursor-pointer' : ''}`} style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
-      {children}
-    </div>
-  );
-
   const inner = (
-    <CardWrap>
+    <CardWrap isConnect={isConnect}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "var(--color-surface-elevated)" }}>
@@ -341,4 +340,13 @@ function SourceCard({
   );
 
   return actionHref ? <Link href={actionHref}>{inner}</Link> : inner;
+}
+
+/* ── Card Wrapper (declared outside render to preserve identity) ── */
+function CardWrap({ isConnect, children }: { isConnect: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`p-5 rounded-2xl transition-all border ${isConnect ? 'hover:bg-white/5 cursor-pointer' : ''}`} style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
+      {children}
+    </div>
+  );
 }

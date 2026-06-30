@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { log } from "@/lib/logger";
+import {
+  listCorrespondence,
+  createCorrespondence,
+} from "@/lib/db/correspondence";
 import { ollamaChat, ollamaStatus } from "@/lib/ollama";
 
 // Helper to remove any em-dashes from strings
@@ -12,43 +16,21 @@ function cleanEmDashes(text: string | null | undefined): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getDB();
     const { searchParams } = new URL(req.url);
     const platform = searchParams.get("platform");
     const direction = searchParams.get("direction");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    let query = "SELECT * FROM correspondence";
-    const params: any[] = [];
-    const conditions: string[] = [];
-
-    if (platform) {
-      conditions.push("platform = ?");
-      params.push(platform);
-    }
-    if (direction) {
-      conditions.push("direction = ?");
-      params.push(direction);
-    }
-
-    if (conditions.length > 0) {
-      query += " WHERE " + conditions.join(" AND ");
-    }
-
-    query += " ORDER BY created_at DESC LIMIT ?";
-    params.push(limit);
-
-    const rows = db.prepare(query).all(...params);
+    const rows = listCorrespondence({ platform, direction, limit });
     return NextResponse.json({ success: true, data: rows });
-  } catch (err: any) {
-    console.error("[api/correspondence] GET error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/correspondence] GET error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDB();
     const bodyData = await req.json();
     const { sender, recipient, subject, body, platform, direction, created_at } = bodyData;
 
@@ -92,35 +74,27 @@ Extract the summary, action items, and rationale:`;
             { role: "user", content: userPrompt }
           ], model);
           decisionLog = cleanEmDashes(resText);
-        } catch (e: any) {
-          console.warn("[api/correspondence] Ollama extraction failed, proceeding without it:", e.message);
+        } catch (e) {
+          const detail = e instanceof Error ? e.message : String(e);
+          log.warn("[api/correspondence] Ollama extraction failed, proceeding without it:", detail);
         }
       }
     }
 
-    const insertQuery = `
-      INSERT INTO correspondence (sender, recipient, subject, body, platform, direction, decision_log, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    const timestamp = created_at || new Date().toISOString();
-    const result = db.prepare(insertQuery).run(
+    const insertedRow = createCorrespondence({
       sender,
       recipient,
-      subject || null,
+      subject: subject || null,
       body,
       platform,
       direction,
-      decisionLog || null,
-      timestamp
-    );
-
-    const newId = result.lastInsertRowid;
-    const insertedRow = db.prepare("SELECT * FROM correspondence WHERE id = ?").get(newId);
+      decision_log: decisionLog || null,
+      created_at: created_at || null,
+    });
 
     return NextResponse.json({ success: true, data: insertedRow });
-  } catch (err: any) {
-    console.error("[api/correspondence] POST error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/correspondence] POST error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

@@ -58,7 +58,7 @@ export async function parseFile(
     // Handle PDF with lazy dependency loading
     if (mimeType === "application/pdf" || extension === "pdf") {
       try {
-        // @ts-ignore
+        // @ts-expect-error - pdf-parse has no bundled types and may not be installed
         const pdfParseModule = await import("pdf-parse");
         const pdfParse = pdfParseModule.default || pdfParseModule;
         const data = await pdfParse(buffer);
@@ -66,11 +66,12 @@ export async function parseFile(
           success: true,
           text: data.text || ""
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const e = err as NodeJS.ErrnoException;
         if (
-          err.code === "MODULE_NOT_FOUND" ||
-          err.message?.includes("Cannot find module") ||
-          err.message?.includes("pdf-parse")
+          e.code === "MODULE_NOT_FOUND" ||
+          e.message?.includes("Cannot find module") ||
+          e.message?.includes("pdf-parse")
         ) {
           return {
             success: false,
@@ -89,7 +90,7 @@ export async function parseFile(
       extension === "docx"
     ) {
       try {
-        // @ts-ignore
+        // @ts-expect-error - mammoth has no bundled types and may not be installed
         const mammothModule = await import("mammoth");
         const mammoth = mammothModule.default || mammothModule;
         const data = await mammoth.extractRawText({ buffer });
@@ -97,11 +98,12 @@ export async function parseFile(
           success: true,
           text: data.value || ""
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const e = err as NodeJS.ErrnoException;
         if (
-          err.code === "MODULE_NOT_FOUND" ||
-          err.message?.includes("Cannot find module") ||
-          err.message?.includes("mammoth")
+          e.code === "MODULE_NOT_FOUND" ||
+          e.message?.includes("Cannot find module") ||
+          e.message?.includes("mammoth")
         ) {
           return {
             success: false,
@@ -117,7 +119,7 @@ export async function parseFile(
     // Handle Images with OCR (tesseract.js)
     if (mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "webp"].includes(extension)) {
       try {
-        // @ts-ignore
+        // @ts-expect-error - tesseract.js has no bundled types and may not be installed
         const tesseractModule = await import("tesseract.js");
         const tesseract = tesseractModule.default || tesseractModule;
         const { recognize } = tesseract;
@@ -126,11 +128,12 @@ export async function parseFile(
           success: true,
           text: result.data.text || ""
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const e = err as NodeJS.ErrnoException;
         if (
-          err.code === "MODULE_NOT_FOUND" ||
-          err.message?.includes("Cannot find module") ||
-          err.message?.includes("tesseract.js")
+          e.code === "MODULE_NOT_FOUND" ||
+          e.message?.includes("Cannot find module") ||
+          e.message?.includes("tesseract.js")
         ) {
           return {
             success: false,
@@ -147,10 +150,10 @@ export async function parseFile(
       success: false,
       error: `Unsupported file format: ${extension || mimeType}`
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: err.message || "Failed to parse file."
+      error: (err instanceof Error ? err.message : undefined) || "Failed to parse file."
     };
   }
 }

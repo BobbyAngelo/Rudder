@@ -4,16 +4,21 @@
    ═══════════════════════════════════════════════════════ */
 
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import { createHmac } from "crypto";
+import {
+  getSessionSecret,
+  safeEqual,
+  SESSION_COOKIE,
+  SESSION_DURATION_MS,
+} from "@/lib/session";
 
 const PASSWORD_HASH = process.env.RUDDER_PASSWORD_HASH || "";
-const SESSION_SECRET = process.env.RUDDER_SESSION_SECRET || "rudder-dev-secret-change-me";
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function createSessionToken(): string {
-  const expires = Date.now() + SESSION_DURATION;
+  const expires = Date.now() + SESSION_DURATION_MS;
   const payload = `rudder:${expires}`;
-  const sig = createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+  const sig = createHmac("sha256", getSessionSecret()).update(payload).digest("hex");
   return `${payload}:${sig}`;
 }
 
@@ -23,8 +28,8 @@ export function verifySessionToken(token: string): boolean {
     if (parts.length !== 3) return false;
     const [prefix, expiresStr, sig] = parts;
     const payload = `${prefix}:${expiresStr}`;
-    const expected = createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
-    if (sig !== expected) return false;
+    const expected = createHmac("sha256", getSessionSecret()).update(payload).digest("hex");
+    if (!safeEqual(sig, expected)) return false;
     if (Date.now() > parseInt(expiresStr)) return false;
     return true;
   } catch {
@@ -44,11 +49,11 @@ export async function POST(request: Request) {
     if (!PASSWORD_HASH) {
       const token = createSessionToken();
       const response = NextResponse.json({ success: true, mode: "dev" });
-      response.cookies.set("rudder_session", token, {
+      response.cookies.set(SESSION_COOKIE, token, {
         httpOnly: true,
         secure: false, // localhost
         sameSite: "strict",
-        maxAge: SESSION_DURATION / 1000,
+        maxAge: SESSION_DURATION_MS / 1000,
         path: "/",
       });
       return response;
@@ -64,15 +69,15 @@ export async function POST(request: Request) {
 
     const token = createSessionToken();
     const response = NextResponse.json({ success: true });
-    response.cookies.set("rudder_session", token, {
+    response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: false,
       sameSite: "strict",
-      maxAge: SESSION_DURATION / 1000,
+      maxAge: SESSION_DURATION_MS / 1000,
       path: "/",
     });
     return response;
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return serverError(error);
   }
 }

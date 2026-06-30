@@ -29,7 +29,7 @@ export function parseCommand(input: string): ParsedCommand {
   let category: "personal" | "work" | "health" | "social" = "personal";
   const categoryMatch = text.match(/#(work|personal|health|social)\b/i);
   if (categoryMatch) {
-    category = categoryMatch[1].toLowerCase() as any;
+    category = categoryMatch[1].toLowerCase() as ParsedCommand["category"];
     text = text.replace(categoryMatch[0], "");
   }
 
@@ -53,7 +53,7 @@ export function parseCommand(input: string): ParsedCommand {
   
   // Let's be careful not to match random numbers like "buy 3 apples".
   // A match is valid if it has "am/pm", a colon (e.g. "13:30"), or is preceded by "at ".
-  let timeMatch = text.match(timeRegex);
+  const timeMatch = text.match(timeRegex);
   
   if (timeMatch) {
     const fullMatch = timeMatch[0];
@@ -85,7 +85,7 @@ export function parseCommand(input: string): ParsedCommand {
 
   // 4. Extract date
   const now = new Date();
-  let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   // Check for relative keywords
   let dateFound = false;
@@ -173,7 +173,7 @@ export function parseCommand(input: string): ParsedCommand {
   }
 
   // Clean up title: remove duplicate spaces and prep words like "on", "by", "at" at the end
-  let title = text
+  const title = text
     .replace(/\s+/g, " ")
     .replace(/\b(on|by|at|for)\s*$/i, "")
     .trim();

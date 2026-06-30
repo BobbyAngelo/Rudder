@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Type-check and Build
+    name: Lint, Test, Type-check and Build
     runs-on: ubuntu-latest
 
     steps:
@@ -26,6 +26,18 @@ jobs:
         run: |
           cd app
           npm ci
+
+      # The codebase is lint-clean (zero errors/warnings); keep it that way by
+      # failing the build on any new lint problem.
+      - name: Lint
+        run: |
+          cd app
+          npm run lint
+
+      - name: Unit Tests
+        run: |
+          cd app
+          npm test
 
       - name: TypeScript Type-check
         run: |

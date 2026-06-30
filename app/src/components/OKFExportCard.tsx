@@ -41,8 +41,8 @@ export default function OKFExportCard() {
       URL.revokeObjectURL(url);
       setDone(true);
       setTimeout(() => setDone(false), 4000);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -61,8 +61,8 @@ export default function OKFExportCard() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Import failed (${res.status})`);
       setImportMsg(`Imported "${data.bundle}" - ${data.conceptCount} concepts. Searchable on next query.`);
-    } catch (err: any) {
-      setImportErr(err.message);
+    } catch (err: unknown) {
+      setImportErr(err instanceof Error ? err.message : String(err));
     } finally {
       setImportBusy(false);
       if (fileRef.current) fileRef.current.value = "";

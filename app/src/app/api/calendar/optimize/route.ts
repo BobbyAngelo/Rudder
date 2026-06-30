@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { getDB } from "@/lib/db";
 
 // Calculate duration in hours between two HH:MM strings
@@ -21,7 +22,7 @@ function getDurationHours(startTime: string, endTime: string): number {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const db = getDB();
 
@@ -40,7 +41,12 @@ export async function POST(req: NextRequest) {
     // 2. Fetch all calendar events in this range
     const events = db.prepare(
       "SELECT * FROM calendar_events WHERE start_date >= ? AND start_date <= ?"
-    ).all(startDate, endDate) as any[];
+    ).all(startDate, endDate) as {
+      start_date: string;
+      all_day: number;
+      start_time: string | null;
+      end_time: string | null;
+    }[];
 
     // 3. Group events by date and calculate total meeting hours per day
     const hoursPerDay: Record<string, number> = {};
@@ -107,8 +113,8 @@ export async function POST(req: NextRequest) {
       globalFocusScore,
       optimizedDays
     });
-  } catch (err: any) {
-    console.error("[api/calendar/optimize] POST error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/calendar/optimize] POST error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

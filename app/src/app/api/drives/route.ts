@@ -1,4 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 
@@ -34,7 +36,7 @@ function getDriveRegistry(): DriveRecord[] {
     const data = JSON.parse(readFileSync(dbPath, "utf-8"));
     return data.drives || [];
   } catch (error) {
-    console.error("Error reading drives-database.json:", error);
+    log.error("Error reading drives-database.json:", error);
     return [];
   }
 }
@@ -133,8 +135,8 @@ export async function GET(request: NextRequest) {
           tree,
           folderCount: Object.keys(manifest.folders || {}).length,
         });
-      } catch (error: any) {
-        console.error("Error reading manifest file:", error);
+      } catch (error) {
+        log.error("Error reading manifest file:", error);
         return NextResponse.json({ error: "Malformed manifest file" }, { status: 500 });
       }
     }
@@ -203,13 +205,13 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (e) {
-      console.warn("Could not read /Volumes folder for auto-discovery:", e);
+      log.warn("Could not read /Volumes folder for auto-discovery:", e);
     }
 
     return NextResponse.json({ drives: results });
-  } catch (error: any) {
-    console.error("Drives API error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("Drives API error:", error);
+    return serverError(error);
   }
 }
 

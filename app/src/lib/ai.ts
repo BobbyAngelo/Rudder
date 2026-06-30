@@ -28,7 +28,12 @@ export async function executeChat(messages: ChatMessage[], mode: string = "local
   
   if (mode.startsWith("exo:")) {
     const modelName = mode.split("exo:")[1];
-    const exoUrls = ["http://localhost:52415", "http://127.0.0.1:52415"];
+    // Honor LOCAL_LLM_URL (Exo / vLLM / any OpenAI-compatible) first, then
+    // fall back to the conventional local exo ports.
+    const exoUrls = [...new Set(
+      [process.env.LOCAL_LLM_URL, "http://localhost:52415", "http://127.0.0.1:52415"]
+        .filter(Boolean) as string[],
+    )];
     let success = false;
     for (const url of exoUrls) {
       try {
@@ -79,7 +84,11 @@ export async function executeChat(messages: ChatMessage[], mode: string = "local
   } else {
     // Fallback to local Ollama
     const modelName = mode.startsWith("ollama:") ? mode.split("ollama:")[1] : "llama3.2:latest";
-    const ollamaUrls = ["http://localhost:11434", "http://127.0.0.1:11434"];
+    // Honor OLLAMA_URL first, then fall back to the conventional local ports.
+    const ollamaUrls = [...new Set(
+      [process.env.OLLAMA_URL, "http://localhost:11434", "http://127.0.0.1:11434"]
+        .filter(Boolean) as string[],
+    )];
     let success = false;
     for (const url of ollamaUrls) {
       try {

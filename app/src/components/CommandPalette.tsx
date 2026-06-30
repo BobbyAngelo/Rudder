@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Search, Bot, Calendar, CheckSquare, Settings, HelpCircle, FileText, User, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { Search, Bot, Settings, HelpCircle, FileText, User, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { parseCommand } from "@/lib/nlp";
+import { parseCommand, type ParsedCommand } from "@/lib/nlp";
 
 const formatPreviewDate = (dateStr: string, timeStr: string | null) => {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -53,10 +53,21 @@ export function CommandPalette() {
   // Custom states for commands
   const [message, setMessage] = useState<string | null>(null);
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
-  const [nlpPreview, setNlpPreview] = useState<any | null>(null);
+  const [nlpPreview, setNlpPreview] = useState<ParsedCommand | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Reset states
+  const resetState = useCallback(() => {
+    setQuery("");
+    setResults([]);
+    setSelectedIndex(-1);
+    setMessage(null);
+    setAskAnswer(null);
+    setNlpPreview(null);
+    setLoading(false);
+  }, []);
 
   // Toggle command palette on CMD+K
   useEffect(() => {
@@ -71,7 +82,7 @@ export function CommandPalette() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [resetState]);
 
   // Listen for global open event
   useEffect(() => {
@@ -81,7 +92,7 @@ export function CommandPalette() {
     };
     window.addEventListener("open-command-palette", handleOpen);
     return () => window.removeEventListener("open-command-palette", handleOpen);
-  }, []);
+  }, [resetState]);
 
   // Handle clicking outside to close
   useEffect(() => {
@@ -98,20 +109,10 @@ export function CommandPalette() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  // Reset states
-  const resetState = () => {
-    setQuery("");
-    setResults([]);
-    setSelectedIndex(-1);
-    setMessage(null);
-    setAskAnswer(null);
-    setNlpPreview(null);
-    setLoading(false);
-  };
-
   // Perform search / auto-suggestions
   useEffect(() => {
     if (!query.trim() || query.startsWith("/")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale results when query is emptied or becomes a slash command
       setResults([]);
       return;
     }
@@ -120,7 +121,7 @@ export function CommandPalette() {
       setLoading(true);
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
+        const data: { results?: SearchResult[] } = await res.json();
         setResults(data.results || []);
         setSelectedIndex(-1);
       } catch (err) {
@@ -137,6 +138,7 @@ export function CommandPalette() {
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale NLP preview when the query is emptied
       setNlpPreview(null);
       return;
     }
@@ -157,7 +159,7 @@ export function CommandPalette() {
       try {
         const parsed = parseCommand(cleanInput);
         setNlpPreview(parsed);
-      } catch (err) {
+      } catch {
         setNlpPreview(null);
       }
     } else {

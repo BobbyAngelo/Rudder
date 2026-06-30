@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { log } from "./logger";
 import * as path from "path";
 import { getDB } from "./db";
 import * as crypto from "crypto";
@@ -27,7 +28,7 @@ const READ_LATER_DIR = path.join(SYNC_DIR, "read-later");
 [TYPEWRITER_DIR, HEALTH_DIR, DEVICES_DIR, CORRESPONDENCE_DIR, CHAT_DIR, BOOKMARKS_DIR, TASKS_DIR, READ_LATER_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
-    console.log(`[sync-daemon] Created directory: ${dir}`);
+    log.info(`[sync-daemon] Created directory: ${dir}`);
   }
 });
 
@@ -77,13 +78,13 @@ try {
       VALUES ('Read-Later Backups', ?, 'read_later', 'active')
     `).run(READ_LATER_DIR);
     
-    console.log("[sync-daemon] Seeded default data sources in database.");
+    log.info("[sync-daemon] Seeded default data sources in database.");
   }
-} catch (err: any) {
-  console.error(`[sync-daemon] Seeding data sources failed: ${err.message}`);
+} catch (err) {
+  log.error(`[sync-daemon] Seeding data sources failed: ${(err as Error).message}`);
 }
 
-console.log("[sync-daemon] Sync daemon successfully initialized.");
+log.info("[sync-daemon] Sync daemon successfully initialized.");
 
 /**
  * Parses a CSV line respecting quoted strings containing commas
@@ -115,8 +116,17 @@ function parseICS(filePath: string): number {
   const content = fs.readFileSync(filePath, "utf-8");
   const lines = content.split(/\r?\n/);
   
+  interface ICSEvent {
+    title: string;
+    description: string;
+    start_date: string;
+    start_time: string | null;
+    all_day: number;
+    location: string;
+  }
+
   let importCount = 0;
-  let currentEvent: any = null;
+  let currentEvent: ICSEvent | null = null;
 
   db.transaction(() => {
     const insertStmt = db.prepare(`
@@ -216,7 +226,7 @@ function processMarkdown(filePath: string, file: string, processedDir: string) {
     );
   })();
 
-  console.log(`[sync-daemon] ✅ Processed markdown log: ${file}`);
+  log.info(`[sync-daemon] ✅ Processed markdown log: ${file}`);
   fs.renameSync(filePath, path.join(processedDir, file));
 }
 
@@ -228,7 +238,7 @@ function processCSV(filePath: string, file: string, processedDir: string) {
   const lines = rawContent.split(/\r?\n/).filter(line => line.trim().length > 0);
   
   if (lines.length < 2) {
-    console.warn(`[sync-daemon] CSV file ${file} is empty or has no header.`);
+    log.warn(`[sync-daemon] CSV file ${file} is empty or has no header.`);
     fs.renameSync(filePath, path.join(processedDir, file));
     return;
   }
@@ -243,7 +253,7 @@ function processCSV(filePath: string, file: string, processedDir: string) {
   const dateIdx = headers.indexOf("date");
 
   if (typeIdx === -1 || valueIdx === -1 || startDateIdx === -1) {
-    console.error(`[sync-daemon] ❌ CSV headers in ${file} must include at least 'type', 'value', and 'startDate'`);
+    log.error(`[sync-daemon] ❌ CSV headers in ${file} must include at least 'type', 'value', and 'startDate'`);
     return;
   }
 
@@ -282,7 +292,7 @@ function processCSV(filePath: string, file: string, processedDir: string) {
     }
   })();
 
-  console.log(`[sync-daemon] ✅ Processed health logs: ${file}. Imported ${importCount} records.`);
+  log.info(`[sync-daemon] ✅ Processed health logs: ${file}. Imported ${importCount} records.`);
   fs.renameSync(filePath, path.join(processedDir, file));
 }
 
@@ -292,10 +302,10 @@ function processCSV(filePath: string, file: string, processedDir: string) {
 function processICS(filePath: string, file: string, processedDir: string) {
   try {
     const count = parseICS(filePath);
-    console.log(`[sync-daemon] ✅ Processed calendar export: ${file}. Imported ${count} events.`);
+    log.info(`[sync-daemon] ✅ Processed calendar export: ${file}. Imported ${count} events.`);
     fs.renameSync(filePath, path.join(processedDir, file));
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing calendar export [${file}]: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error processing calendar export [${file}]: ${(err as Error).message}`);
   }
 }
 
@@ -316,7 +326,7 @@ async function processWAV(filePath: string, file: string, processedDir: string) 
         signal: AbortSignal.timeout(5000)
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as { text?: string };
         transcriptText = data.text || "";
       }
     } catch {
@@ -358,10 +368,10 @@ async function processWAV(filePath: string, file: string, processedDir: string) 
       );
     })();
 
-    console.log(`[sync-daemon] ✅ Processed voice log: ${file}`);
+    log.info(`[sync-daemon] ✅ Processed voice log: ${file}`);
     fs.renameSync(filePath, path.join(processedDir, file));
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing voice log [${file}]: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error processing voice log [${file}]: ${(err as Error).message}`);
   }
 }
 
@@ -399,7 +409,7 @@ function processDeviceJSON(filePath: string, file: string, processedDir: string)
         dateVal
       );
       
-      console.log(`[sync-daemon] ✅ Ingested device metric: ${data.type} = ${data.value}`);
+      log.info(`[sync-daemon] ✅ Ingested device metric: ${data.type} = ${data.value}`);
     } else {
       // General telemetry log - save to reality_nodes
       const eventId = `device_telemetry_${crypto.randomUUID()}`;
@@ -419,12 +429,12 @@ function processDeviceJSON(filePath: string, file: string, processedDir: string)
         raw
       );
       
-      console.log(`[sync-daemon] ✅ Ingested device telemetry log: ${file}`);
+      log.info(`[sync-daemon] ✅ Ingested device telemetry log: ${file}`);
     }
     
     fs.renameSync(filePath, path.join(processedDir, file));
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing device JSON [${file}]: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error processing device JSON [${file}]: ${(err as Error).message}`);
   }
 }
 
@@ -455,7 +465,7 @@ function processCorrespondence(filePath: string, file: string, processedDir: str
       const content = fs.readFileSync(filePath, "utf-8");
       const lines = content.split(/\r?\n/);
       let yamlMode = false;
-      let bodyLines: string[] = [];
+      const bodyLines: string[] = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -484,7 +494,7 @@ function processCorrespondence(filePath: string, file: string, processedDir: str
     }
 
     if (!sender || !body) {
-      console.warn(`[sync-daemon] Skipping correspondence log ${file} (missing sender or body)`);
+      log.warn(`[sync-daemon] Skipping correspondence log ${file} (missing sender or body)`);
       fs.renameSync(filePath, path.join(processedDir, file));
       return;
     }
@@ -494,10 +504,10 @@ function processCorrespondence(filePath: string, file: string, processedDir: str
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(sender, recipient, subject, body, platform, direction, createdAt);
 
-    console.log(`[sync-daemon] ✅ Ingested correspondence: from ${sender} on ${platform}`);
+    log.info(`[sync-daemon] ✅ Ingested correspondence: from ${sender} on ${platform}`);
     fs.renameSync(filePath, path.join(processedDir, file));
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing correspondence [${file}]: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error processing correspondence [${file}]: ${(err as Error).message}`);
   }
 }
 
@@ -510,7 +520,7 @@ function processChatExport(filePath: string, file: string, processedDir: string)
     const data = JSON.parse(raw);
 
     if (!Array.isArray(data)) {
-      console.warn(`[sync-daemon] Skipping chat export ${file}: JSON is not a conversation array.`);
+      log.warn(`[sync-daemon] Skipping chat export ${file}: JSON is not a conversation array.`);
       fs.renameSync(filePath, path.join(processedDir, file));
       return;
     }
@@ -533,7 +543,14 @@ function processChatExport(filePath: string, file: string, processedDir: string)
           const mdLines: string[] = [`# ${title}\n`];
           
           // Reconstruct conversation turns from mapping nodes
-          const nodes = Object.values(conv.mapping) as any[];
+          interface ChatGPTNode {
+            message?: {
+              create_time?: number;
+              content?: { parts?: string[] };
+              author?: { role?: string };
+            };
+          }
+          const nodes = Object.values(conv.mapping) as ChatGPTNode[];
           // Sort nodes by creation time if available
           nodes.sort((a, b) => (a.message?.create_time || 0) - (b.message?.create_time || 0));
 
@@ -582,18 +599,18 @@ function processChatExport(filePath: string, file: string, processedDir: string)
     })();
 
     if (chatgptCount > 0) {
-      console.log(`[sync-daemon] ✅ Ingested ChatGPT export: ${file}. Imported ${chatgptCount} chats.`);
+      log.info(`[sync-daemon] ✅ Ingested ChatGPT export: ${file}. Imported ${chatgptCount} chats.`);
     }
     if (claudeCount > 0) {
-      console.log(`[sync-daemon] ✅ Ingested Claude export: ${file}. Imported ${claudeCount} chats.`);
+      log.info(`[sync-daemon] ✅ Ingested Claude export: ${file}. Imported ${claudeCount} chats.`);
     }
     if (chatgptCount === 0 && claudeCount === 0) {
-      console.warn(`[sync-daemon] No valid conversations parsed from chat export: ${file}`);
+      log.warn(`[sync-daemon] No valid conversations parsed from chat export: ${file}`);
     }
 
     fs.renameSync(filePath, path.join(processedDir, file));
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing chat export [${file}]: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error processing chat export [${file}]: ${(err as Error).message}`);
   }
 }
 
@@ -602,7 +619,7 @@ function processChatExport(filePath: string, file: string, processedDir: string)
  */
 function processBookmarks(filePath: string, file: string, processedDir: string) {
   try {
-    console.log(`[sync-daemon] Parsing bookmarks export: ${file}`);
+    log.info(`[sync-daemon] Parsing bookmarks export: ${file}`);
     const htmlContent = fs.readFileSync(filePath, "utf-8");
     const bookmarks = parseBookmarks(htmlContent);
 
@@ -649,9 +666,9 @@ function processBookmarks(filePath: string, file: string, processedDir: string) 
     // Move file to processed directory
     const dest = path.join(processedDir, file);
     fs.renameSync(filePath, dest);
-    console.log(`[sync-daemon] ✅ Bookmarks sync complete. Ingested: ${inserted}, Skipped: ${skipped}`);
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error in bookmarks sync: ${err.message}`);
+    log.info(`[sync-daemon] ✅ Bookmarks sync complete. Ingested: ${inserted}, Skipped: ${skipped}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error in bookmarks sync: ${(err as Error).message}`);
     throw err;
   }
 }
@@ -661,7 +678,7 @@ function processBookmarks(filePath: string, file: string, processedDir: string) 
  */
 function processReadLater(filePath: string, file: string, processedDir: string) {
   try {
-    console.log(`[sync-daemon] Parsing read-later export: ${file}`);
+    log.info(`[sync-daemon] Parsing read-later export: ${file}`);
     const items = readReadLaterFile(filePath);
 
     const checkStmt = db.prepare("SELECT event_id FROM reality_nodes WHERE event_id = ?");
@@ -706,9 +723,9 @@ function processReadLater(filePath: string, file: string, processedDir: string) 
     // Move file to processed directory
     const dest = path.join(processedDir, file);
     fs.renameSync(filePath, dest);
-    console.log(`[sync-daemon] ✅ Read-Later sync complete. Ingested: ${inserted}, Skipped: ${skipped}`);
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error in read-later sync: ${err.message}`);
+    log.info(`[sync-daemon] ✅ Read-Later sync complete. Ingested: ${inserted}, Skipped: ${skipped}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error in read-later sync: ${(err as Error).message}`);
     throw err;
   }
 }
@@ -718,7 +735,7 @@ function processReadLater(filePath: string, file: string, processedDir: string) 
  */
 function processTasksBackup(filePath: string, file: string, processedDir: string) {
   try {
-    console.log(`[sync-daemon] Parsing tasks backup: ${file}`);
+    log.info(`[sync-daemon] Parsing tasks backup: ${file}`);
     const content = fs.readFileSync(filePath, "utf-8");
     const tasks = parseTasksBackup(content);
 
@@ -751,10 +768,10 @@ function processTasksBackup(filePath: string, file: string, processedDir: string
       }
     })();
 
-    console.log(`[sync-daemon] ✅ Ingested tasks backup: ${file}. Ingested: ${inserted}, Skipped: ${skipped}`);
+    log.info(`[sync-daemon] ✅ Ingested tasks backup: ${file}. Ingested: ${inserted}, Skipped: ${skipped}`);
     fs.renameSync(filePath, path.join(processedDir, file));
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error processing tasks backup [${file}]: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ Error processing tasks backup [${file}]: ${(err as Error).message}`);
   }
 }
 
@@ -764,7 +781,7 @@ function processTasksBackup(filePath: string, file: string, processedDir: string
 function scanSource(source: { id: number; name: string; path: string; type: string }) {
   const dirPath = source.path;
   if (!fs.existsSync(dirPath)) {
-    console.warn(`[sync-daemon] ⚠️ Directory for source "${source.name}" does not exist: ${dirPath}`);
+    log.warn(`[sync-daemon] ⚠️ Directory for source "${source.name}" does not exist: ${dirPath}`);
     db.prepare("UPDATE data_sources SET status = 'error', error_message = ? WHERE id = ?").run(
       `Directory does not exist: ${dirPath}`,
       source.id
@@ -783,50 +800,40 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
       return fs.statSync(full).isFile();
     });
 
-    let processedCount = 0;
     for (const file of files) {
       const filePath = path.join(dirPath, file);
-      
+
       if (file.endsWith(".md") && source.type === "folder") {
         processMarkdown(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".csv") && source.type === "healthkit_export") {
         processCSV(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".ics")) {
         processICS(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".wav") && source.type === "device_capture") {
         processWAV(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".json") && source.type === "device_capture") {
         processDeviceJSON(filePath, file, processedDir);
-        processedCount++;
       } else if ((file.endsWith(".json") || file.endsWith(".md")) && source.type === "correspondence") {
         processCorrespondence(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".json") && source.type === "chat_export") {
         processChatExport(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".html") && source.type === "bookmarks") {
         processBookmarks(filePath, file, processedDir);
-        processedCount++;
       } else if (file.endsWith(".json") && source.type === "tasks_backup") {
         processTasksBackup(filePath, file, processedDir);
-        processedCount++;
       } else if ((file.endsWith(".html") || file.endsWith(".csv")) && source.type === "read_later") {
         processReadLater(filePath, file, processedDir);
-        processedCount++;
       }
     }
 
     // Update last_scanned timestamp and status in DB
     const nowStr = new Date().toISOString();
     db.prepare("UPDATE data_sources SET status = 'active', error_message = NULL, last_scanned = ? WHERE id = ?").run(nowStr, source.id);
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ Error scanning source "${source.name}": ${err.message}`);
+  } catch (err) {
+    const message = (err as Error).message;
+    log.error(`[sync-daemon] ❌ Error scanning source "${source.name}": ${message}`);
     db.prepare("UPDATE data_sources SET status = 'error', error_message = ? WHERE id = ?").run(
-      err.message,
+      message,
       source.id
     );
   }
@@ -837,10 +844,17 @@ function scanSource(source: { id: number; name: string; path: string; type: stri
  */
 async function syncImapInbox() {
   const db = getDB();
-  let prefs: any = null;
+  interface ImapPrefs {
+    imap_host: string | null;
+    imap_port: number | null;
+    imap_user: string | null;
+    imap_pass: string | null;
+    inbox_sync_enabled: number | null;
+  }
+  let prefs: ImapPrefs | undefined;
   try {
-    prefs = db.prepare("SELECT imap_host, imap_port, imap_user, imap_pass, inbox_sync_enabled FROM user_preferences WHERE id = 1").get();
-  } catch (e: any) {
+    prefs = db.prepare("SELECT imap_host, imap_port, imap_user, imap_pass, inbox_sync_enabled FROM user_preferences WHERE id = 1").get() as ImapPrefs | undefined;
+  } catch {
     return;
   }
 
@@ -848,7 +862,7 @@ async function syncImapInbox() {
     return;
   }
 
-  console.log(`[sync-daemon] Starting IMAP sync for ${prefs.imap_user} at ${prefs.imap_host}...`);
+  log.info(`[sync-daemon] Starting IMAP sync for ${prefs.imap_user} at ${prefs.imap_host}...`);
 
   const client = new ImapFlow({
     host: prefs.imap_host,
@@ -869,7 +883,7 @@ async function syncImapInbox() {
       const status = await client.status("INBOX", { messages: true });
       const totalMessages = status.messages || 0;
       if (totalMessages === 0) {
-        console.log("[sync-daemon] IMAP Inbox is empty.");
+        log.info("[sync-daemon] IMAP Inbox is empty.");
         return;
       }
 
@@ -905,15 +919,15 @@ async function syncImapInbox() {
           VALUES (?, ?, ?, ?, 'email', 'incoming', ?, ?)
         `).run(sender, recipient, subject, body, messageId, createdAt);
 
-        console.log(`[sync-daemon] ✅ Synced email from IMAP: ${sender} - "${subject}"`);
+        log.info(`[sync-daemon] ✅ Synced email from IMAP: ${sender} - "${subject}"`);
       }
     } finally {
       lock.release();
     }
     
     await client.logout();
-  } catch (err: any) {
-    console.error(`[sync-daemon] ❌ IMAP sync failed: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] ❌ IMAP sync failed: ${(err as Error).message}`);
   }
 }
 
@@ -923,18 +937,18 @@ async function syncImapInbox() {
 function tick() {
   try {
     // Query active folders/data sources from database
-    const activeSources = db.prepare("SELECT id, name, path, type FROM data_sources WHERE status = 'active'").all() as any[];
-    
+    const activeSources = db.prepare("SELECT id, name, path, type FROM data_sources WHERE status = 'active'").all() as { id: number; name: string; path: string; type: string }[];
+
     for (const source of activeSources) {
       scanSource(source);
     }
 
     // Trigger IMAP Sync in background
-    syncImapInbox().catch((err: any) => {
-      console.error(`[sync-daemon] IMAP background sync error: ${err.message}`);
+    syncImapInbox().catch((err) => {
+      log.error(`[sync-daemon] IMAP background sync error: ${(err as Error).message}`);
     });
-  } catch (err: any) {
-    console.error(`[sync-daemon] Sync daemon error in loop: ${err.message}`);
+  } catch (err) {
+    log.error(`[sync-daemon] Sync daemon error in loop: ${(err as Error).message}`);
   }
 }
 
@@ -944,7 +958,7 @@ tick();
 
 // Graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\n[sync-daemon] Shutting down sync daemon...");
+  log.info("\n[sync-daemon] Shutting down sync daemon...");
   clearInterval(intervalId);
   process.exit(0);
 });

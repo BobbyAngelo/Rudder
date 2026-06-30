@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, CheckSquare, Square, Target, Loader2, Sparkles } from "lucide-react";
+import { Check, Target, Loader2 } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 
 interface Habit {
@@ -50,6 +50,8 @@ export function WidgetHabits() {
   };
 
   useEffect(() => {
+    // Initial async data load on mount; setState only runs after the awaited fetch resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHabits();
   }, []);
 

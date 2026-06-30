@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Users, Search, Mail, Building2, UserCircle, Loader2,
-  Phone, Globe, ExternalLink, MapPin, Plus, Trash2, Save,
-  Briefcase, Palette, HeartHandshake, LayoutList, Fingerprint, 
-  Check, Copy, ChevronRight, MessageSquare, Compass, Send, Zap, X, Pencil
+  Users, Search, Building2, UserCircle, Loader2,
+  ExternalLink, MapPin, Plus, Trash2, Save,
+  Briefcase, Palette, HeartHandshake, LayoutList, Fingerprint,
+  Check, Copy, MessageSquare, Compass, Send, Zap, X, Pencil
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
@@ -56,11 +56,9 @@ const REL_ICONS: Record<string, React.ElementType> = {
   unsorted: LayoutList,
 };
 
-const SECTION_COLOR = "var(--color-section-identity)";
-
 export default function PeoplePage() {
   const [people, setPeople] = useState<Person[]>([]);
-  const [total, setTotal] = useState(0);
+  const [, setTotal] = useState(0);
   const [relationships, setRelationships] = useState<RelationshipCount[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -99,6 +97,7 @@ export default function PeoplePage() {
   // Debounce search input to prevent query spamming
   useEffect(() => {
     if (search === "") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clears debounced query immediately when input is emptied; preserves existing UX timing
       setDebouncedSearch("");
       return;
     }
@@ -128,6 +127,7 @@ export default function PeoplePage() {
   }, [debouncedSearch, filterRel]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch; setState runs after await, not synchronously
     fetchPeople();
   }, [fetchPeople]);
 
@@ -164,11 +164,6 @@ export default function PeoplePage() {
   const handleStartEdit = () => {
     setDraft({ ...selectedPerson! });
     setEditing(true);
-  };
-
-  const handleCancelEdit = () => {
-    setEditing(false);
-    setDraft({ ...selectedPerson! });
   };
 
   const handleSave = async () => {
@@ -565,7 +560,7 @@ export default function PeoplePage() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id as "feed" | "grid" | "pulse")}
                     className={`flex items-center gap-2 py-2.5 text-xs font-mono uppercase tracking-wider border-b-2 transition-all relative ${
                       active
                         ? "border-accent text-accent font-semibold"

@@ -15,7 +15,7 @@ export interface WidgetConfig {
   id: string;
   label: string;
   desc: string;
-  component: React.ComponentType<any>;
+  component: React.ComponentType;
 }
 
 export const WIDGET_REGISTRY: WidgetConfig[] = [

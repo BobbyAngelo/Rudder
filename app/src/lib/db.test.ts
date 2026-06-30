@@ -40,7 +40,7 @@ test("db: check identity_profile singleton constraint", () => {
   }, /CHECK constraint failed/, "Should prevent inserting id != 1");
   
   // Profile row 1 should already exist
-  const row = db.prepare("SELECT id, display_name FROM identity_profile WHERE id = 1").get() as any;
+  const row = db.prepare("SELECT id, display_name FROM identity_profile WHERE id = 1").get() as { id: number; display_name: string } | undefined;
   assert.ok(row, "Profile row 1 should exist");
 });
 
@@ -71,7 +71,13 @@ test("db: check reality_nodes primary key constraint", () => {
 
 test("db: verify user preferences default settings", () => {
   const db = getDB();
-  const prefs = db.prepare("SELECT * FROM user_preferences WHERE id = 1").get() as any;
+  const prefs = db.prepare("SELECT * FROM user_preferences WHERE id = 1").get() as Record<string, unknown> & {
+    theme: string;
+    enabled_modules: string;
+    default_execution_mode: string;
+    fallback_execution_mode: string;
+    tts_provider: string;
+  };
   
   assert.ok(prefs, "Preferences row 1 should exist");
   assert.strictEqual(prefs.theme, "dark", "Default theme should be 'dark'");

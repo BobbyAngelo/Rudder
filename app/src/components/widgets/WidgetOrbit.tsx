@@ -5,8 +5,14 @@ import { OrbitRing } from "@/components/OrbitRing";
 import { Database, HardDrive, Cpu, RefreshCw } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 
+interface OrbitStats {
+  data_sources?: number;
+  people_count?: number;
+  health_records?: number;
+}
+
 export function WidgetOrbit() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<OrbitStats | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {

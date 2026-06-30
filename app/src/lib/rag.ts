@@ -8,6 +8,7 @@ import { join } from "path";
 import Database from "better-sqlite3";
 import { getDB } from "./db";
 import { collectImportedOKFChunks } from "./okf-import";
+import { log } from "./logger";
 
 const DATA_DIR = join(process.cwd(), "..", "data");
 
@@ -23,12 +24,32 @@ export interface Chunk {
   content: string;
 }
 
+// In-memory cache for the assembled corpus. Rebuilding scans every table
+// (~1,500 chunks) and runs on every /ask and /chat call, so we memoize with a
+// short TTL. Writers can force an immediate refresh via invalidateContextChunks().
+const CHUNK_CACHE_TTL_MS = Number(process.env.RAG_CACHE_TTL_MS) || 30_000;
+let _chunkCache: { chunks: Chunk[]; builtAt: number } | null = null;
+
+/** Drop the cached corpus so the next build reflects fresh data immediately. */
+export function invalidateContextChunks(): void {
+  _chunkCache = null;
+}
+
 /**
- * Build all chunks from sovereign data (in-memory, on-demand)
- * This avoids needing a separate embeddings DB for now.
- * ~1,500 chunks, fast to build on each request.
+ * Build all chunks from sovereign data (in-memory, on-demand), memoized with a
+ * short TTL. Pass force=true to bypass the cache.
  */
-export function buildContextChunks(): Chunk[] {
+export function buildContextChunks(force = false): Chunk[] {
+  if (!force && _chunkCache && Date.now() - _chunkCache.builtAt < CHUNK_CACHE_TTL_MS) {
+    return _chunkCache.chunks;
+  }
+  const chunks = assembleContextChunks();
+  _chunkCache = { chunks, builtAt: Date.now() };
+  return chunks;
+}
+
+/** Heavy builder: scans all sovereign tables and files. Not cached itself. */
+function assembleContextChunks(): Chunk[] {
   const chunks: Chunk[] = [];
 
   try {
@@ -36,7 +57,7 @@ export function buildContextChunks(): Chunk[] {
 
     // 1. People
     try {
-      const people = db.prepare("SELECT name, company, title, notes FROM people LIMIT 400").all() as any[];
+      const people = db.prepare("SELECT name, company, title, notes FROM people LIMIT 400").all() as { name: string; company: string | null; title: string | null; notes: string | null }[];
       for (const p of people) {
         chunks.push({
           source: "people",
@@ -44,11 +65,11 @@ export function buildContextChunks(): Chunk[] {
           content: `Contact: ${p.name}. ${p.title ? `Title: ${p.title}.` : ""} ${p.company ? `Company: ${p.company}.` : ""} ${p.notes ? `Notes: ${p.notes}` : ""}`.trim(),
         });
       }
-    } catch { /* */ }
+    } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
     // 1b. Tasks
     try {
-      const tasks = db.prepare("SELECT title, description, status, priority, due_date, due_time FROM tasks LIMIT 200").all() as any[];
+      const tasks = db.prepare("SELECT title, description, status, priority, due_date, due_time FROM tasks LIMIT 200").all() as { title: string; description: string | null; status: string; priority: number; due_date: string | null; due_time: string | null }[];
       for (const t of tasks) {
         chunks.push({
           source: "tasks",
@@ -56,11 +77,11 @@ export function buildContextChunks(): Chunk[] {
           content: `Task: ${t.title}. Status: ${t.status}. Priority: ${t.priority}. ${t.due_date ? `Due: ${t.due_date} ${t.due_time || ''}` : ""} ${t.description ? `Desc: ${t.description}` : ""}`.trim(),
         });
       }
-    } catch { /* */ }
+    } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
     // 1c. Calendar Events
     try {
-      const events = db.prepare("SELECT title, description, start_date, start_time, location, category FROM calendar_events LIMIT 200").all() as any[];
+      const events = db.prepare("SELECT title, description, start_date, start_time, location, category FROM calendar_events LIMIT 200").all() as { title: string; description: string | null; start_date: string; start_time: string | null; location: string | null; category: string }[];
       for (const e of events) {
         chunks.push({
           source: "calendar",
@@ -68,11 +89,11 @@ export function buildContextChunks(): Chunk[] {
           content: `Event: ${e.title}. Date: ${e.start_date} ${e.start_time || ''}. Category: ${e.category}. ${e.location ? `Location: ${e.location}.` : ""} ${e.description ? `Desc: ${e.description}` : ""}`.trim(),
         });
       }
-    } catch { /* */ }
+    } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
     // 1d. Reality Nodes
     try {
-      const nodes = db.prepare("SELECT origin_provenance, artifact_id, what_classification, when_timestamp, where_context, why_insight, raw_blob FROM reality_nodes ORDER BY when_timestamp DESC LIMIT 150").all() as any[];
+      const nodes = db.prepare("SELECT origin_provenance, artifact_id, what_classification, when_timestamp, where_context, why_insight, raw_blob FROM reality_nodes ORDER BY when_timestamp DESC LIMIT 150").all() as { origin_provenance: string | null; artifact_id: string | null; what_classification: string; when_timestamp: string; where_context: string | null; why_insight: string | null; raw_blob: string | null }[];
       for (const n of nodes) {
         let content = `Event [${n.what_classification}] on ${n.when_timestamp}. Location: ${n.where_context || 'Unknown'}. Insight: ${n.why_insight || 'None'}`;
         let title = n.what_classification;
@@ -86,7 +107,7 @@ export function buildContextChunks(): Chunk[] {
               const sizeStr = blob.size ? (blob.size < 1024 * 1024 ? `${Math.round(blob.size / 1024)} KB` : `${(blob.size / (1024 * 1024)).toFixed(1)} MB`) : "unknown size";
               content = `File "${blob.filename}" (${blob.extension || 'unknown ext'}, ${sizeStr}) located at "${n.artifact_id || blob.dir}". Classified as "${n.what_classification}". Modified on ${n.when_timestamp}.`;
             }
-          } catch { /* fallback */ }
+          } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
         }
 
         chunks.push({
@@ -95,7 +116,7 @@ export function buildContextChunks(): Chunk[] {
           content: content.trim(),
         });
       }
-    } catch { /* */ }
+    } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
     // 1e. Health Records (from main db)
     try {
@@ -107,7 +128,7 @@ export function buildContextChunks(): Chunk[] {
         GROUP BY type 
         ORDER BY count DESC 
         LIMIT 20
-      `).all() as any[];
+      `).all() as { type: string; count: number; avg_val: number | null; first: string; last: string }[];
       for (const r of records) {
         chunks.push({
           source: "health",
@@ -115,11 +136,11 @@ export function buildContextChunks(): Chunk[] {
           content: `Health record "${r.type}": ${r.count} entries found. Average value: ${r.avg_val}. Range: ${r.first} to ${r.last}.`,
         });
       }
-    } catch { /* */ }
+    } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
     // 1f. Correspondence (emails, messages, slack)
     try {
-      const messages = db.prepare("SELECT sender, recipient, subject, body, platform, direction, decision_log, date(created_at) as date FROM correspondence ORDER BY created_at DESC LIMIT 150").all() as any[];
+      const messages = db.prepare("SELECT sender, recipient, subject, body, platform, direction, decision_log, date(created_at) as date FROM correspondence ORDER BY created_at DESC LIMIT 150").all() as { sender: string; recipient: string; subject: string | null; body: string; platform: string; direction: string; decision_log: string | null; date: string }[];
       for (const m of messages) {
         chunks.push({
           source: "correspondence",
@@ -127,9 +148,9 @@ export function buildContextChunks(): Chunk[] {
           content: `Message (${m.platform}, ${m.direction}) on ${m.date}. From: ${m.sender}. To: ${m.recipient}. ${m.subject ? `Subject: ${m.subject}.` : ""} Body: ${m.body}. ${m.decision_log ? `Action Summary: ${m.decision_log}` : ""}`.trim(),
         });
       }
-    } catch { /* */ }
+    } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
-  } catch { /* DB error */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
 
   // 2. Career
@@ -149,7 +170,7 @@ export function buildContextChunks(): Chunk[] {
         content: `Production: ${p.title}. Client: ${p.client || ""}. Role: ${p.role || ""}. Year: ${p.year || ""}. ${p.description || ""}`.trim(),
       });
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 3. Documents
   try {
@@ -161,7 +182,7 @@ export function buildContextChunks(): Chunk[] {
         content: `Document: ${d.title}. Type: ${d.type}. Date: ${d.date || ""}. Format: ${d.format || ""}.`.trim(),
       });
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 4. Wiki docs (markdown)
   try {
@@ -183,7 +204,7 @@ export function buildContextChunks(): Chunk[] {
         }
       }
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 5. Life story
   try {
@@ -195,14 +216,14 @@ export function buildContextChunks(): Chunk[] {
         content: `Life Story Chapter "${ch.title}": ${ch.content}`,
       });
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 6. Identity
   try {
     const resume = loadJSON("identity/master-resume.json");
     if (resume) {
       const sections = resume.sections || resume.experience || [];
-      const formatToMarkdown = (obj: any): string => {
+      const formatToMarkdown = (obj: unknown): string => {
         if (typeof obj === "string") return obj;
         if (typeof obj !== "object" || !obj) return String(obj);
         return Object.entries(obj)
@@ -220,7 +241,7 @@ export function buildContextChunks(): Chunk[] {
         chunks.push({ source: "identity", title: "Resume", content: `Resume:\n${text.slice(0, 1000)}` });
       }
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 7. Hardware
   try {
@@ -239,7 +260,7 @@ export function buildContextChunks(): Chunk[] {
         content: `Hardware project: ${p.name}. Slug: ${p.slug}. Files: ${p.files}. Status: ${p.status}.`,
       });
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 8. Properties
   try {
@@ -251,12 +272,12 @@ export function buildContextChunks(): Chunk[] {
         content: `Property: ${p.name}. URL: ${p.url || ""}. Tagline: ${p.tagline || ""}. Status: ${p.status || ""}.`,
       });
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 8b. Imported OKF bundles (external knowledge)
   try {
     for (const c of collectImportedOKFChunks(DATA_DIR)) chunks.push(c);
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   // 9. Health summary (aggregate, not 352K rows)
   try {
@@ -272,7 +293,7 @@ export function buildContextChunks(): Chunk[] {
           GROUP BY type 
           ORDER BY count DESC 
           LIMIT 20
-        `).all() as any[];
+        `).all() as { type: string; count: number; avg_val: number | null; first: string; last: string }[];
         for (const s of summary) {
           chunks.push({
             source: "health",
@@ -280,10 +301,10 @@ export function buildContextChunks(): Chunk[] {
             content: `Health metric "${s.type}": ${s.count} records, average value ${s.avg_val}, range ${s.first} to ${s.last}.`,
           });
         }
-      } catch { /* table might not exist */ }
+      } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
       db.close();
     }
-  } catch { /* */ }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
 
   return chunks;
 }
@@ -342,8 +363,6 @@ export async function retrieveChunksHybrid(
     if (semantic.length > 0) {
       return semantic.map(({ source, title, content }) => ({ source, title, content }));
     }
-  } catch {
-    /* fall through to keyword retrieval */
-  }
+  } catch (e) { log.debug("[rag] section skipped:", e instanceof Error ? e.message : e); }
   return retrieveChunks(chunks, query, topN);
 }

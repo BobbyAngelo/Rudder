@@ -1,11 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, CheckSquare, Plus, Loader2, Shield, Sparkles } from "lucide-react";
+import { Calendar, CheckSquare, Plus, Loader2, Shield } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 
+interface AgendaTask {
+  name: string;
+  status?: string;
+}
+
+interface AgendaEvent {
+  name: string;
+  date: string;
+  time?: string;
+  category: string;
+}
+
+interface AgendaData {
+  tasks: AgendaTask[];
+  events: AgendaEvent[];
+  globalFocusScore: number;
+}
+
 export function WidgetAgenda() {
-  const [data, setData] = useState<{tasks: any[], events: any[], globalFocusScore: number}>({ 
+  const [data, setData] = useState<AgendaData>({
     tasks: [], 
     events: [], 
     globalFocusScore: 100 

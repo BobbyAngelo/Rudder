@@ -4,6 +4,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { getDB } from "@/lib/db";
 import { buildContextChunks, retrieveChunksHybrid } from "@/lib/rag";
 import { executeChat, ChatMessage } from "@/lib/ai";
@@ -22,14 +23,14 @@ Rules:
 
 export async function POST(request: Request) {
   try {
-    const { question } = await request.json();
+    const { question } = await request.json() as { question?: unknown };
 
     if (!question || typeof question !== "string" || question.trim().length < 3) {
       return NextResponse.json({ error: "Question too short" }, { status: 400 });
     }
 
     const db = getDB();
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
+    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as { default_execution_mode?: string } | undefined;
     const mode = prefs?.default_execution_mode || "local_ollama";
 
     // Build context (hybrid semantic + keyword retrieval) and recall memories
@@ -69,9 +70,9 @@ export async function POST(request: Request) {
         { role: "user", content: question },
         { role: "assistant", content: answer },
       ]);
-    } catch (modelError: any) {
+    } catch (modelError) {
       return NextResponse.json({
-        answer: `⚠️ AI Request Failed [${mode}]: ${modelError.message}`,
+        answer: `⚠️ AI Request Failed [${mode}]: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
         sources: [],
         online: false,
       });
@@ -86,7 +87,8 @@ export async function POST(request: Request) {
       chunksUsed: relevant.length,
       totalChunks: allChunks.length,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message, online: false }, { status: 500 });
+  } catch (error) {
+    log.error("[api:ask]", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "Internal server error", online: false }, { status: 500 });
   }
 }

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "../../../../lib/db";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
+import {
+  getSmtpPreferences,
+  getIncomingCorrespondence,
+  recordSentReply,
+} from "@/lib/db/correspondence";
 import * as nodemailer from "nodemailer";
 
 /* ═══════════════════════════════════════════════════════
@@ -15,26 +21,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing correspondenceId or replyBody" }, { status: 400 });
     }
 
-    const db = getDB();
-
     // 1. Fetch user SMTP preferences
-    const prefs = db.prepare(`
-      SELECT smtp_host, smtp_port, smtp_user, smtp_pass, display_name 
-      FROM user_preferences up
-      LEFT JOIN identity_profile ip ON ip.id = 1
-      WHERE up.id = 1
-    `).get() as any;
+    const prefs = getSmtpPreferences();
 
     if (!prefs || !prefs.smtp_host || !prefs.smtp_user || !prefs.smtp_pass) {
       return NextResponse.json({ error: "SMTP host or credentials not configured in Settings -> Integrations." }, { status: 400 });
     }
 
     // 2. Fetch target incoming correspondence record
-    const msg = db.prepare(`
-      SELECT sender, recipient, subject, body 
-      FROM correspondence 
-      WHERE id = ? AND direction = 'incoming'
-    `).get(correspondenceId) as any;
+    const msg = getIncomingCorrespondence(correspondenceId);
 
     if (!msg) {
       return NextResponse.json({ error: `Incoming correspondence message not found with ID: ${correspondenceId}` }, { status: 404 });
@@ -44,7 +39,7 @@ export async function POST(req: NextRequest) {
       ? msg.subject 
       : `Re: ${msg.subject || "Your message"}`;
 
-    console.log(`[smtp-route] Sending email to ${msg.sender} via ${prefs.smtp_host}:${prefs.smtp_port || 587}...`);
+    log.info(`[smtp-route] Sending email to ${msg.sender} via ${prefs.smtp_host}:${prefs.smtp_port || 587}...`);
 
     // 3. Create SMTP Transport
     const transporter = nodemailer.createTransport({
@@ -68,22 +63,16 @@ export async function POST(req: NextRequest) {
     const sentMessageId = info.messageId || `smtp_${Date.now()}@rudder.local`;
 
     // 5. Update SQLite database (transactional)
-    db.transaction(() => {
-      // Create outgoing correspondence record
-      db.prepare(`
-        INSERT INTO correspondence (sender, recipient, subject, body, platform, direction, message_id)
-        VALUES (?, ?, ?, ?, 'email', 'outgoing', ?)
-      `).run(prefs.smtp_user, msg.sender, replySubject, replyBody, sentMessageId);
+    recordSentReply({
+      fromUser: prefs.smtp_user,
+      toRecipient: msg.sender,
+      subject: replySubject,
+      body: replyBody,
+      messageId: sentMessageId,
+      incomingId: correspondenceId,
+    });
 
-      // Update incoming correspondence decision log state
-      db.prepare(`
-        UPDATE correspondence 
-        SET decision_log = ? 
-        WHERE id = ?
-      `).run(`[Replied] Sent via SMTP. Message ID: ${sentMessageId}`, correspondenceId);
-    })();
-
-    console.log(`[smtp-route] ✅ Email sent successfully to ${msg.sender}. Info ID: ${sentMessageId}`);
+    log.info(`[smtp-route] ✅ Email sent successfully to ${msg.sender}. Info ID: ${sentMessageId}`);
 
     return NextResponse.json({ 
       success: true, 
@@ -91,8 +80,8 @@ export async function POST(req: NextRequest) {
       messageId: sentMessageId 
     });
 
-  } catch (error: any) {
-    console.error("POST /api/correspondence/send Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("POST /api/correspondence/send Error:", error);
+    return serverError(error);
   }
 }

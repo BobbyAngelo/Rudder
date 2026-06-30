@@ -1,3 +1,4 @@
+import { log } from "./logger";
 /* ═══════════════════════════════════════════════════════
    Mem0 — Persistent Learning Memory Layer
    The "librarian" that sits between inference and storage.
@@ -42,16 +43,35 @@ export interface MemoryHit {
    we import it lazily inside try/catch and never let a failure
    bubble into a request. */
 
-let _memoryPromise: Promise<any | null> | null = null;
+interface MemoryClient {
+  add(messages: MemoryMessage[], opts: { userId: string }): Promise<unknown>;
+  search(query: string, opts: { topK: number; filters: { user_id: string } }): Promise<unknown>;
+  getAll(opts: { filters: { user_id: string } }): Promise<unknown>;
+  delete(memoryId: string): Promise<unknown>;
+}
 
-async function getMemory(): Promise<any | null> {
+interface RawMemoryHit {
+  id?: string;
+  memory?: string;
+  text?: string;
+  score?: number;
+}
+
+type MemoryConstructor = new (config: unknown) => MemoryClient;
+
+let _memoryPromise: Promise<MemoryClient | null> | null = null;
+
+async function getMemory(): Promise<MemoryClient | null> {
   if (!MEM0_ENABLED) return null;
   if (_memoryPromise) return _memoryPromise;
 
   _memoryPromise = (async () => {
     try {
       // Dynamic import keeps mem0ai fully optional at build/runtime.
-      const mod: any = await import("mem0ai/oss");
+      const mod = (await import("mem0ai/oss")) as unknown as {
+        Memory?: MemoryConstructor;
+        default?: MemoryConstructor & { Memory?: MemoryConstructor };
+      };
       const Memory = mod.Memory || mod.default?.Memory || mod.default;
       if (!Memory) return null;
 
@@ -76,8 +96,8 @@ async function getMemory(): Promise<any | null> {
       });
 
       return memory;
-    } catch (err: any) {
-      console.warn("[mem0] memory layer unavailable:", err?.message || err);
+    } catch (err) {
+      log.warn("[mem0] memory layer unavailable:", (err as Error)?.message || err);
       return null;
     }
   })();
@@ -102,8 +122,8 @@ export async function addMemory(
     const memory = await getMemory();
     if (!memory) return;
     await memory.add(messages, { userId });
-  } catch (err: any) {
-    console.warn("[mem0] addMemory failed:", err?.message || err);
+  } catch (err) {
+    log.warn("[mem0] addMemory failed:", (err as Error)?.message || err);
   }
 }
 
@@ -120,14 +140,16 @@ export async function searchMemory(
     const memory = await getMemory();
     if (!memory) return [];
     const res = await memory.search(query, { topK: limit, filters: { user_id: userId } });
-    const results = Array.isArray(res) ? res : res?.results || [];
-    return results.map((r: any) => ({
+    const results: RawMemoryHit[] = Array.isArray(res)
+      ? (res as RawMemoryHit[])
+      : (res as { results?: RawMemoryHit[] })?.results || [];
+    return results.map((r) => ({
       id: r.id,
       memory: r.memory ?? r.text ?? "",
       score: r.score,
     }));
-  } catch (err: any) {
-    console.warn("[mem0] searchMemory failed:", err?.message || err);
+  } catch (err) {
+    log.warn("[mem0] searchMemory failed:", (err as Error)?.message || err);
     return [];
   }
 }
@@ -138,14 +160,16 @@ export async function getAllMemories(userId: string = DEFAULT_USER_ID): Promise<
     const memory = await getMemory();
     if (!memory) return [];
     const res = await memory.getAll({ filters: { user_id: userId } });
-    const results = Array.isArray(res) ? res : res?.results || [];
-    return results.map((r: any) => ({
+    const results: RawMemoryHit[] = Array.isArray(res)
+      ? (res as RawMemoryHit[])
+      : (res as { results?: RawMemoryHit[] })?.results || [];
+    return results.map((r) => ({
       id: r.id,
       memory: r.memory ?? r.text ?? "",
       score: r.score,
     }));
-  } catch (err: any) {
-    console.warn("[mem0] getAllMemories failed:", err?.message || err);
+  } catch (err) {
+    log.warn("[mem0] getAllMemories failed:", (err as Error)?.message || err);
     return [];
   }
 }
@@ -157,8 +181,8 @@ export async function deleteMemory(memoryId: string): Promise<boolean> {
     if (!memory) return false;
     await memory.delete(memoryId);
     return true;
-  } catch (err: any) {
-    console.warn("[mem0] deleteMemory failed:", err?.message || err);
+  } catch (err) {
+    log.warn("[mem0] deleteMemory failed:", (err as Error)?.message || err);
     return false;
   }
 }

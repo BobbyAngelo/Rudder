@@ -1,21 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  BookOpen, 
-  Tag, 
-  Trash2, 
-  Plus, 
-  Radio, 
-  Wifi, 
-  Play, 
-  Pause, 
-  Volume2, 
-  Check, 
-  HelpCircle,
+import {
+  BookOpen,
+  Trash2,
+  Plus,
+  Radio,
+  Wifi,
+  Play,
+  Pause,
+  Volume2,
+  Check,
   FileText,
   Activity,
-  Calendar,
   ClipboardList
 } from "lucide-react";
 
@@ -62,13 +59,6 @@ export default function PalaNotePage() {
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [taskCreateSuccess, setTaskCreateSuccess] = useState(false);
 
-  // Fetch Notes on mount and poll every 3 seconds for instant real-time sync
-  useEffect(() => {
-    fetchNotes(true); // Initial load displays the loading spinner
-    const pollInterval = setInterval(() => fetchNotes(false), 3000); // Polling does not
-    return () => clearInterval(pollInterval);
-  }, []);
-
   const fetchNotes = async (initial = false) => {
     try {
       if (initial) setLoading(true);
@@ -86,6 +76,15 @@ export default function PalaNotePage() {
       if (initial) setLoading(false);
     }
   };
+
+  // Fetch Notes on mount and poll every 3 seconds for instant real-time sync
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- async fetch + mount-only polling; setState runs after await and fetchNotes is intentionally excluded to keep a single 3s interval */
+  useEffect(() => {
+    fetchNotes(true); // Initial load displays the loading spinner
+    const pollInterval = setInterval(() => fetchNotes(false), 3000); // Polling does not
+    return () => clearInterval(pollInterval);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   const handleCreateNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +111,7 @@ export default function PalaNotePage() {
           content: newContent.trim(),
           tags: tagsArray
         })
-      } as any);
+      } as unknown as RequestInit);
 
       if (r.ok) {
         setNewTitle("");
@@ -320,7 +319,7 @@ export default function PalaNotePage() {
           }
         });
       }
-    } catch (e) {
+    } catch {
       // Ignore parse errors
     }
   });
@@ -331,14 +330,14 @@ export default function PalaNotePage() {
     try {
       const parsed = JSON.parse(n.tags);
       return Array.isArray(parsed) && parsed.includes(selectedTag);
-    } catch (e) {
+    } catch {
       return false;
     }
   });
 
   // Playback timer simulation
   useEffect(() => {
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (isPlaying) {
       interval = setInterval(() => {
         setPlaybackTime(prev => {
@@ -508,7 +507,7 @@ export default function PalaNotePage() {
                   let tagsArr: string[] = [];
                   try {
                     tagsArr = JSON.parse(note.tags);
-                  } catch (e) {}
+                  } catch {}
 
                   // Compute word count and visual gravity score
                   const gravity = Math.min(10, Math.max(1, Math.round(note.word_count / 4)));
@@ -597,7 +596,7 @@ export default function PalaNotePage() {
                           try {
                             const parsed = JSON.parse(activeNote.tags);
                             isAssigned = Array.isArray(parsed) && parsed.includes(proj);
-                          } catch (e) {}
+                          } catch {}
 
                           const colorClasses = 
                             proj === "Rudder" ? "border-cyan-500/40 text-cyan-400 bg-cyan-950/20" :
@@ -813,7 +812,7 @@ export default function PalaNotePage() {
                             try {
                               const parsed = JSON.parse(activeNote.tags);
                               return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : "General";
-                            } catch (e) {
+                            } catch {
                               return "General";
                             }
                           })()}

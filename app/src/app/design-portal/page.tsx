@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Sparkles, Cpu, Layers, MessageSquare, Terminal, ChevronRight, Check,
-  Play, Shield, RefreshCw, Send, Command, Lightbulb, MapPin, Calendar
+import {
+  Sparkles, Cpu, Layers, Terminal, ChevronRight, Check,
+  Play, Shield, Send, Command
 } from "lucide-react";
 
 interface ThemeConfig {
@@ -333,7 +333,7 @@ export default function DesignPortal() {
                 <div className="h-px" style={{ backgroundColor: "var(--color-border)" }} />
                 <div>
                   <blockquote className="font-serif italic text-lg text-[var(--color-text-secondary)] pl-4 border-l-2" style={{ borderColor: "var(--color-accent)" }}>
-                    "The only data that can't leak is the data that never leaves your hands. Keep your thoughts sovereign."
+                    &quot;The only data that can&apos;t leak is the data that never leaves your hands. Keep your thoughts sovereign.&quot;
                   </blockquote>
                   <p className="text-xs text-[var(--color-text-dim)] mt-1.5">serif-literary · italic · quote block</p>
                 </div>
@@ -518,7 +518,7 @@ function ColorBox({ label, desc, color, border }: { label: string; desc: string;
   );
 }
 
-function AgendaItem({ time, title, category, tag }: { time: string; title: string; category: string; tag: string }) {
+function AgendaItem({ time, title, tag }: { time: string; title: string; category: string; tag: string }) {
   return (
     <div 
       className="flex items-center justify-between p-2.5 rounded-xl border text-xs"

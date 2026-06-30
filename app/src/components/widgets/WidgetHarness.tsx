@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Target, Copy, Check, Loader2, Sparkles, Terminal } from "lucide-react";
+import { Target, Copy, Check, Loader2, Terminal } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 import Link from "next/link";
 

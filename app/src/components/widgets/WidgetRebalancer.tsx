@@ -142,7 +142,7 @@ export function WidgetRebalancer({ onUpdate }: { onUpdate?: () => void }) {
                   {prop.task_title}
                 </h4>
                 <p className="text-[11px] text-[var(--color-text-muted)] mt-1 italic font-serif leading-relaxed">
-                  "{prop.reason}"
+                  &quot;{prop.reason}&quot;
                 </p>
               </div>
 

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { 
-  BookOpen, Send, Bot, User, Loader2, Sparkles, Database, Cpu, 
-  Calendar, RefreshCw, Save, CheckCircle2, ChevronRight, ChevronDown, Clock, HelpCircle,
-  Map, AlertCircle, MapPin, SlidersHorizontal, FolderOpen, Camera
+import {
+  BookOpen, Send, Bot, User, Loader2, Sparkles, Database, Cpu,
+  Save, CheckCircle2, ChevronRight, ChevronDown,
+  Map, AlertCircle
 } from "lucide-react";
 
 interface Message {
@@ -30,6 +30,70 @@ interface LifeEvent {
   tags?: string[];
 }
 
+interface JourneySummary {
+  id: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  photoCount?: number;
+}
+
+interface JourneyPhoto {
+  id: number;
+  filename: string;
+  lat?: number;
+  lng?: number;
+  city?: string;
+}
+
+interface DayVitals {
+  sleep_hours?: number;
+  resting_hr?: number;
+}
+
+interface DayNarrative {
+  essence?: string;
+  manual_prose?: string;
+  ai_narrative?: string;
+}
+
+interface ItineraryDay {
+  dayIndex: number;
+  date: string;
+  displayDate: string;
+  cities: string[];
+  people: string[];
+  photos: JourneyPhoto[];
+  vitals: DayVitals;
+  narrative?: DayNarrative;
+}
+
+interface JourneyDetails {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  photoCount: number;
+  people: string[];
+  polyline: [number, number][];
+  itinerary: ItineraryDay[];
+}
+
+interface InterviewSession {
+  id: number;
+  title?: string;
+  created_at?: string;
+}
+
+interface ProjectedPoint {
+  x: number;
+  y: number;
+  lat: number;
+  lng: number;
+  cityName: string;
+  dayIndex: number;
+}
+
 const formatDate = (dateStr: string | null) => {
   if (!dateStr) return "Never";
   try {
@@ -50,9 +114,9 @@ export default function BiographerPage() {
   const [activeTab, setActiveTab] = useState<"rag" | "interview" | "memoirs">("rag");
 
   // Memoirs / Chronicles States
-  const [journeysList, setJourneysList] = useState<any[]>([]);
+  const [journeysList, setJourneysList] = useState<JourneySummary[]>([]);
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
-  const [journeyDetails, setJourneyDetails] = useState<any>(null);
+  const [journeyDetails, setJourneyDetails] = useState<JourneyDetails | null>(null);
   const [loadingJourney, setLoadingJourney] = useState(false);
   const [essences, setEssences] = useState<Record<number, string>>({});
   const [manualProses, setManualProses] = useState<Record<number, string>>({});
@@ -65,7 +129,7 @@ export default function BiographerPage() {
   const [totalAnswers, setTotalAnswers] = useState<number>(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [lifeEvents, setLifeEvents] = useState<LifeEvent[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [, setSessions] = useState<InterviewSession[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
   // Accordion state
@@ -112,6 +176,7 @@ export default function BiographerPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; setState runs after await, not synchronously
     fetchStats();
   }, []);
 
@@ -142,7 +207,7 @@ export default function BiographerPage() {
         const initialEssences: Record<number, string> = {};
         const initialManualProses: Record<number, string> = {};
         
-        data.journey.itinerary.forEach((day: any) => {
+        (data.journey.itinerary as ItineraryDay[]).forEach((day) => {
           initialEssences[day.dayIndex] = day.narrative?.essence || "";
           initialManualProses[day.dayIndex] = day.narrative?.manual_prose || "";
         });
@@ -209,8 +274,8 @@ export default function BiographerPage() {
 
       setStatus({ online: true, host: data.host });
       setRagMessages([...newMessages, { role: "assistant", content: data.text }]);
-    } catch (err: any) {
-      setRagMessages([...newMessages, { role: "assistant", content: `[SYSTEM ERROR]: ${err.message}` }]);
+    } catch (err: unknown) {
+      setRagMessages([...newMessages, { role: "assistant", content: `[SYSTEM ERROR]: ${err instanceof Error ? err.message : String(err)}` }]);
     } finally {
       setRagLoading(false);
     }
@@ -243,8 +308,8 @@ export default function BiographerPage() {
       }
 
       setInterviewMessages([...newMessages, { role: "assistant", content: data.answer }]);
-    } catch (err: any) {
-      setInterviewMessages([...newMessages, { role: "assistant", content: `[SYSTEM ERROR]: ${err.message}` }]);
+    } catch (err: unknown) {
+      setInterviewMessages([...newMessages, { role: "assistant", content: `[SYSTEM ERROR]: ${err instanceof Error ? err.message : String(err)}` }]);
     } finally {
       setInterviewLoading(false);
     }
@@ -301,7 +366,7 @@ export default function BiographerPage() {
       ]);
       await fetchStats();
       setTimeout(() => setSaveStatus(null), 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setSaveStatus("Error saving session");
       setTimeout(() => setSaveStatus(null), 3000);
@@ -354,18 +419,18 @@ export default function BiographerPage() {
       const height = 360;
       const padding = 30;
 
-      const projectedPoints = coords.map(([lat, lng]: [number, number], idx: number) => {
+      const projectedPoints: ProjectedPoint[] = coords.map(([lat, lng]: [number, number]) => {
         // Simple linear interpolation to fit bounds
         const x = padding + ((lng - minLng) / lngRange) * (width - 2 * padding);
         // Invert Y axis for screen space
         const y = padding + (1 - (lat - minLat) / latRange) * (height - 2 * padding);
-        
+
         // Find if this point belongs to an itinerary day
         let cityName = "";
         let dayIndex = 1;
-        
-        journeyDetails.itinerary.forEach((day: any) => {
-          day.photos.forEach((p: any) => {
+
+        journeyDetails.itinerary.forEach((day: ItineraryDay) => {
+          day.photos.forEach((p: JourneyPhoto) => {
             if (p.lat === lat && p.lng === lng && p.city) {
               cityName = p.city;
               dayIndex = day.dayIndex;
@@ -377,7 +442,7 @@ export default function BiographerPage() {
       });
 
       // Construct SVG line data path
-      const pathData = projectedPoints.map((p: any, i: number) => 
+      const pathData = projectedPoints.map((p: ProjectedPoint, i: number) =>
         `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
       ).join(" ");
 
@@ -388,7 +453,7 @@ export default function BiographerPage() {
 
     const handleSaveDayReflections = async (dayIndex: number, triggerAI: boolean) => {
       setSavingNarrative(prev => ({ ...prev, [dayIndex]: true }));
-      const day = journeyDetails.itinerary.find((d: any) => d.dayIndex === dayIndex);
+      const day = journeyDetails.itinerary.find((d: ItineraryDay) => d.dayIndex === dayIndex)!;
       
       try {
         const res = await fetch("/api/media/chronicles", {
@@ -413,14 +478,14 @@ export default function BiographerPage() {
         }
 
         // Update local journey details state with new narrative
-        const updatedItinerary = journeyDetails.itinerary.map((d: any) => {
+        const updatedItinerary = journeyDetails.itinerary.map((d: ItineraryDay) => {
           if (d.dayIndex === dayIndex) {
             return {
               ...d,
               narrative: {
                 essence: essences[dayIndex] || "",
                 manual_prose: manualProses[dayIndex] || "",
-                ai_narrative: triggerAI ? data.ai_narrative : d.narrative.ai_narrative
+                ai_narrative: triggerAI ? data.ai_narrative : d.narrative?.ai_narrative
               }
             };
           }
@@ -432,8 +497,8 @@ export default function BiographerPage() {
           itinerary: updatedItinerary
         });
 
-      } catch (e: any) {
-        alert(e.message);
+      } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : String(e));
       } finally {
         setSavingNarrative(prev => ({ ...prev, [dayIndex]: false }));
       }
@@ -479,7 +544,7 @@ export default function BiographerPage() {
                   />
                 )}
 
-                {projectedPoints.map((pt: any, idx: number) => {
+                {projectedPoints.map((pt: ProjectedPoint, idx: number) => {
                   const hasLabel = !!pt.cityName;
                   if (!hasLabel && idx !== 0 && idx !== projectedPoints.length - 1) return null;
                   
@@ -557,7 +622,7 @@ export default function BiographerPage() {
 
           {/* Day-by-Day scroll list */}
           <div className="space-y-10">
-            {journeyDetails.itinerary.map((day: any) => {
+            {journeyDetails.itinerary.map((day: ItineraryDay) => {
               const charCount = (essences[day.dayIndex] || "").length;
               const isOverLimit = charCount > 30;
 
@@ -624,15 +689,16 @@ export default function BiographerPage() {
                       className="flex items-center gap-3 overflow-x-auto py-1 no-scrollbar shrink-0 select-none cursor-grab active:cursor-grabbing"
                       style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
                     >
-                      {day.photos.map((record: any) => (
+                      {day.photos.map((record: JourneyPhoto) => (
                         <div 
                           key={record.id} 
                           onClick={() => setLightboxImage(`/api/media/stream?id=${record.id}`)}
                           className="w-[100px] aspect-square rounded-lg overflow-hidden border border-white/[0.04] shrink-0 hover:scale-103 hover:border-accent/30 transition-all duration-200 cursor-pointer bg-background"
                         >
-                          <img 
-                            src={`/api/media/stream?id=${record.id}`} 
-                            alt={record.filename} 
+                          {/* eslint-disable-next-line @next/next/no-img-element -- dynamic streamed asset, intrinsic dimensions unknown */}
+                          <img
+                            src={`/api/media/stream?id=${record.id}`}
+                            alt={record.filename}
                             className="w-full h-full object-cover"
                             loading="lazy"
                           />
@@ -1113,9 +1179,10 @@ export default function BiographerPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md cursor-pointer animate-fade-in"
         >
           <div className="relative max-w-4xl max-h-[85vh] p-4 flex items-center justify-center">
-            <img 
-              src={lightboxImage} 
-              alt="High resolution memory" 
+            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic streamed asset, intrinsic dimensions unknown */}
+            <img
+              src={lightboxImage}
+              alt="High resolution memory"
               className="max-w-full max-h-full object-contain rounded-xl border border-white/10 shadow-2xl"
             />
           </div>

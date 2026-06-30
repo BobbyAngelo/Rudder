@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Mail, MessageSquare, Sparkles, Copy, Check, ChevronDown, ChevronUp, RefreshCw, Send } from "lucide-react";
+import { Mail, Sparkles, Copy, Check, ChevronDown, ChevronUp, RefreshCw, Send } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 
 interface Message {
@@ -41,6 +41,8 @@ export function WidgetCorrespondence() {
   };
 
   useEffect(() => {
+    // Initial data load on mount; fetchMessages is stable and sets loading state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchMessages();
   }, []);
 
@@ -230,7 +232,7 @@ export function WidgetCorrespondence() {
                               className="text-[10px] py-0.5 px-2 rounded outline-none border cursor-pointer font-sans"
                               style={{ background: "var(--color-background)", color: "var(--color-text-primary)", borderColor: "var(--color-border)" }}
                             >
-                              <option value="linkedin-ghostwriter">Robert's Public Voice</option>
+                              <option value="linkedin-ghostwriter">Robert&apos;s Public Voice</option>
                               <option value="technical-architect">Technical Architect</option>
                               <option value="reflective-coach">Reflective Coach</option>
                             </select>

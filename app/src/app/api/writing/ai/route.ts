@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
+import { getDefaultExecutionMode } from "@/lib/db/writing";
 import { executeChat, ChatMessage } from "@/lib/ai";
 
 export async function POST(request: Request) {
@@ -58,9 +60,7 @@ Enforce sibilance cleanup, metrical rhythm, zero em-dashes, and strict brevity. 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    const db = getDB();
-    const prefs = db.prepare("SELECT default_execution_mode FROM user_preferences WHERE id = 1").get() as any;
-    const mode = prefs?.default_execution_mode || "local_ollama";
+    const mode = getDefaultExecutionMode();
 
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -72,8 +72,8 @@ Enforce sibilance cleanup, metrical rhythm, zero em-dashes, and strict brevity. 
     return NextResponse.json({
       result: answer.trim()
     });
-  } catch (error: any) {
-    console.error("[api/writing/ai] error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("[api/writing/ai] error:", error);
+    return serverError(error);
   }
 }

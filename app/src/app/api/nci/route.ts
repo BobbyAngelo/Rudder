@@ -33,9 +33,9 @@ export async function POST(req: NextRequest) {
       lens,
       insight
     });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
-      { success: false, error: err.message || "An unexpected error occurred during NCI processing." },
+      { success: false, error: "An unexpected error occurred during NCI processing." },
       { status: 500 }
     );
   }

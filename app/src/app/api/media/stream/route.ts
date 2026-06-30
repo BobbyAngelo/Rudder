@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
+import { serverError } from "@/lib/api-error";
 import { statSync, createReadStream, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 import Database from "better-sqlite3";
+import { getMediaLocation } from "@/lib/db/media";
 
 const MIME_TYPES: Record<string, string> = {
   mp4: "video/mp4",
@@ -59,11 +62,7 @@ export async function GET(req: NextRequest) {
     }
 
     const db = new Database(dbPath, { readonly: true });
-    const fileRow = db.prepare(`
-      SELECT sourceVolume, relativePath, extension 
-      FROM media 
-      WHERE id = ?
-    `).get(mediaId) as { sourceVolume: string, relativePath: string, extension: string } | undefined;
+    const fileRow = getMediaLocation(db, mediaId);
     db.close();
 
     if (!fileRow) {
@@ -100,7 +99,7 @@ export async function GET(req: NextRequest) {
         }
         cacheExists = existsSync(cachePath);
       } catch (err) {
-        console.error("Cache directory access error:", err);
+        log.error("Cache directory access error:", err);
       }
 
       if (!cacheExists) {
@@ -109,7 +108,7 @@ export async function GET(req: NextRequest) {
           execSync(`sips -s format jpeg -Z 2048 "${filePath}" --out "${cachePath}"`, { stdio: "ignore" });
           cacheExists = existsSync(cachePath);
         } catch (err) {
-          console.error(`Sips conversion failed for RAW file: ${filePath}`, err);
+          log.error(`Sips conversion failed for RAW file: ${filePath}`, err);
         }
       }
 
@@ -120,7 +119,7 @@ export async function GET(req: NextRequest) {
           const cachedStats = statSync(cachePath);
           fileSize = cachedStats.size;
         } catch (err) {
-          console.error("Failed to stat cached preview", err);
+          log.error("Failed to stat cached preview", err);
         }
       }
     }
@@ -146,7 +145,9 @@ export async function GET(req: NextRequest) {
 
       const webStream = new ReadableStream({
         start(controller) {
-          fileStream.on("data", (chunk: any) => controller.enqueue(new Uint8Array(chunk)));
+          fileStream.on("data", (chunk: string | Buffer) =>
+            controller.enqueue(new Uint8Array(chunk as unknown as ArrayLike<number>)),
+          );
           fileStream.on("end", () => controller.close());
           fileStream.on("error", (err) => controller.error(err));
         },
@@ -168,7 +169,9 @@ export async function GET(req: NextRequest) {
       const fileStream = createReadStream(targetFilePath);
       const webStream = new ReadableStream({
         start(controller) {
-          fileStream.on("data", (chunk: any) => controller.enqueue(new Uint8Array(chunk)));
+          fileStream.on("data", (chunk: string | Buffer) =>
+            controller.enqueue(new Uint8Array(chunk as unknown as ArrayLike<number>)),
+          );
           fileStream.on("end", () => controller.close());
           fileStream.on("error", (err) => controller.error(err));
         },
@@ -185,8 +188,8 @@ export async function GET(req: NextRequest) {
         },
       });
     }
-  } catch (error: any) {
-    console.error("Stream API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    log.error("Stream API Error:", error);
+    return serverError(error);
   }
 }

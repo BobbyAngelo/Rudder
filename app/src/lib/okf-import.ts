@@ -11,7 +11,7 @@
    OKF fields (type, title, description, resource, tags, timestamp).
    ═══════════════════════════════════════════════════════ */
 
-import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync } from "fs";
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, type Dirent } from "fs";
 import { join, dirname, sep } from "path";
 import type { Chunk } from "./rag";
 
@@ -28,7 +28,7 @@ export interface OKFFrontmatter {
   resource?: string;
   tags?: string[];
   timestamp?: string;
-  [k: string]: any;
+  [k: string]: string | string[] | undefined;
 }
 
 function unquote(s: string): string {
@@ -97,7 +97,7 @@ export function okfConceptToChunk(markdown: string, relPath: string, bundle: str
 }
 
 function walkMarkdown(dir: string, acc: string[] = []): string[] {
-  let entries: any[];
+  let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {

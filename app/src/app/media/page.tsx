@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { 
-  Database, 
-  Image as ImageIcon, 
-  Video, 
-  MapPin, 
-  HardDrive,
+import {
+  Database,
+  Image as ImageIcon,
+  MapPin,
   File,
   RefreshCw,
   FolderOpen,
@@ -14,8 +12,6 @@ import {
   SlidersHorizontal,
   Play,
   Film,
-  Camera,
-  Layers,
   Map,
   Sparkles,
   CheckCircle,
@@ -23,13 +19,8 @@ import {
   ChevronRight,
   ChevronDown,
   Folder,
-  Plus,
-  Users,
-  Heart,
-  CalendarDays,
   Shuffle,
   Trash2,
-  Star,
   RotateCcw,
   SkipForward
 } from "lucide-react";
@@ -66,6 +57,116 @@ interface MediaRecord {
   favorite?: number | null;
 }
 
+interface VirtualAlbum {
+  id: number;
+  name: string;
+  count: number;
+  criteria_json?: string | null;
+  [key: string]: string | number | null | undefined;
+}
+
+interface MediaTypeCount {
+  type: string;
+  count: number;
+}
+
+interface CameraCount {
+  camera: string;
+  count: number;
+  [key: string]: string | number | null | undefined;
+}
+
+interface CityCount {
+  city: string;
+  country?: string | null;
+  count: number;
+  [key: string]: string | number | null | undefined;
+}
+
+interface PersonCount {
+  name: string;
+  count?: number;
+  [key: string]: string | number | null | undefined;
+}
+
+interface MediaMeta {
+  totalFiles?: number;
+  totalBytes?: number;
+  filteredCount?: number;
+  geotagged?: number;
+  records?: MediaRecord[];
+  types?: MediaTypeCount[];
+  memoriesCount?: number;
+  rawCount?: number;
+  screenshotsCount?: number;
+  aiArtCount?: number;
+  favoriteCount?: number;
+  youtubeReadyCount?: number;
+  youtubeDraftCount?: number;
+  unorganizedCount?: number;
+  virtualAlbums?: VirtualAlbum[];
+  cameras?: CameraCount[];
+  cities?: CityCount[];
+  people?: PersonCount[];
+  [key: string]: unknown;
+}
+
+interface JourneySummary {
+  id: string;
+  name?: string;
+  [key: string]: string | number | null | undefined;
+}
+
+interface JourneyNarrative {
+  essence?: string;
+  manual_prose?: string;
+  ai_narrative?: string;
+}
+
+interface JourneyVitals {
+  sleep_hours?: number;
+  resting_hr?: number;
+  [key: string]: number | string | null | undefined;
+}
+
+interface JourneyPhoto {
+  id: number;
+  filename: string;
+  lat?: number | null;
+  lng?: number | null;
+  city?: string | null;
+  [key: string]: string | number | null | undefined;
+}
+
+interface JourneyDay {
+  dayIndex: number;
+  date?: string;
+  displayDate?: string;
+  cities: string[];
+  people: string[];
+  vitals: JourneyVitals;
+  photos: JourneyPhoto[];
+  narrative?: JourneyNarrative;
+}
+
+interface JourneyDetails {
+  id: string;
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+  photoCount?: number;
+  people: string[];
+  polyline?: [number, number][];
+  itinerary: JourneyDay[];
+  [key: string]: unknown;
+}
+
+interface TriageUndoEntry {
+  record: MediaRecord;
+  actionType: "delete" | "skip" | "file";
+  albumId?: number;
+  albumName?: string;
+}
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -157,7 +258,8 @@ function PhotoCard({ record, onClick }: { record: MediaRecord; onClick: () => vo
             <span className="text-[9px] truncate max-w-full font-mono">{record.filename}</span>
           </div>
         ) : (
-          <img 
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
             src={`/api/media/stream?id=${record.id}`}
             alt={record.filename}
             loading="lazy"
@@ -189,7 +291,7 @@ function PhotoCard({ record, onClick }: { record: MediaRecord; onClick: () => vo
 }
 
 interface SidebarItemProps {
-  icon: any;
+  icon: React.ElementType;
   label: string;
   count?: number;
   active: boolean;
@@ -265,7 +367,7 @@ function SidebarSection({ title, isOpen, onToggle, children, rightElement }: Sid
 
 export default function MediaPage() {
   // Aggregate data state
-  const [metaData, setMetaData] = useState<any>(null);
+  const [metaData, setMetaData] = useState<MediaMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -300,8 +402,8 @@ export default function MediaPage() {
       );
       setTimeout(() => setSyncMessage(""), 5000);
       setTimeout(() => fetchMediaData(true), 3000);
-    } catch (e: any) {
-      setSyncError(e.message);
+    } catch (e: unknown) {
+      setSyncError(e instanceof Error ? e.message : String(e));
       setSyncMessage("");
     } finally {
       setSyncingApple(false);
@@ -317,55 +419,13 @@ export default function MediaPage() {
   const [isSwiping, setIsSwiping] = useState(false);
   
   // Chronicles / Journey Storyteller States
-  const [chroniclesOpen, setChroniclesOpen] = useState(true);
-  const [journeysList, setJourneysList] = useState<any[]>([]);
+  const [, setJourneysList] = useState<JourneySummary[]>([]);
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
-  const [journeyDetails, setJourneyDetails] = useState<any>(null);
-  const [loadingJourney, setLoadingJourney] = useState(false);
+  const [journeyDetails, setJourneyDetails] = useState<JourneyDetails | null>(null);
+  const [loadingJourney] = useState(false);
   const [essences, setEssences] = useState<Record<number, string>>({});
   const [manualProses, setManualProses] = useState<Record<number, string>>({});
   const [savingNarrative, setSavingNarrative] = useState<Record<number, boolean>>({});
-
-  const handleJourneySelect = async (id: string) => {
-    setSelectedJourneyId(id);
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedFace("");
-    setSelectedCity("");
-    setSelectedVolume("");
-    setSelectedCamera("");
-    setSelectedFavorite(false);
-    setSelectedRawOnly(false);
-    setSelectedMemory(false);
-    setSelectedUnorganized(false);
-    
-    setLoadingJourney(true);
-    setJourneyDetails(null);
-    
-    try {
-      const res = await fetch(`/api/media/chronicles?journeyId=${id}`);
-      const data = await res.json();
-      if (data.success) {
-        setJourneyDetails(data.journey);
-        
-        // Initialize editing states
-        const initialEssences: Record<number, string> = {};
-        const initialManualProses: Record<number, string> = {};
-        
-        data.journey.itinerary.forEach((day: any) => {
-          initialEssences[day.dayIndex] = day.narrative?.essence || "";
-          initialManualProses[day.dayIndex] = day.narrative?.manual_prose || "";
-        });
-        
-        setEssences(initialEssences);
-        setManualProses(initialManualProses);
-      }
-    } catch (e) {
-      console.error("Failed to load journey details:", e);
-    } finally {
-      setLoadingJourney(false);
-    }
-  };
 
   useEffect(() => {
     fetch("/api/media/chronicles")
@@ -392,7 +452,7 @@ export default function MediaPage() {
   const [selectedRawOnly, setSelectedRawOnly] = useState(false);
   const [selectedFavorite, setSelectedFavorite] = useState(false);
   const [selectedUnorganized, setSelectedUnorganized] = useState(false);
-  const [triageUndoStack, setTriageUndoStack] = useState<any[]>([]);
+  const [triageUndoStack, setTriageUndoStack] = useState<TriageUndoEntry[]>([]);
   const [folderFilter, setFolderFilter] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -402,14 +462,7 @@ export default function MediaPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Sidebar Folders Expansion States
-  const [categoriesOpen, setCategoriesOpen] = useState(true);
-  const [placesOpen, setPlacesOpen] = useState(true);
-  const [sourcesOpen, setSourcesOpen] = useState(true);
-  const [camerasOpen, setCamerasOpen] = useState(true);
   const [albumsOpen, setAlbumsOpen] = useState(true);
-  const [dateArchiveOpen, setDateArchiveOpen] = useState(true);
-  const [smartAlbumsOpen, setSmartAlbumsOpen] = useState(true);
-  const [peopleOpen, setPeopleOpen] = useState(true);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [chronologyView, setChronologyView] = useState<"month" | "week" | "day">("month");
 
@@ -482,6 +535,8 @@ export default function MediaPage() {
       const searchParams = new URLSearchParams(window.location.search);
       const view = searchParams.get("view");
       if (view === "photos" || view === "videos") {
+        // One-time initialization of view state from the URL query string (external source) on mount.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setViewMode(view);
         setSelectedType(view === "photos" ? "photo" : "video");
       }
@@ -490,17 +545,17 @@ export default function MediaPage() {
 
   useEffect(() => {
     fetchMediaData(true);
+    // fetchMediaData is intentionally omitted: it is a non-memoized closure; including it would refetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, selectedType, selectedVolume, selectedCity, selectedCategory, selectedYoutubeStatus, selectedMemory, selectedCamera, selectedAlbum, selectedRawOnly, selectedVirtualAlbum, selectedFace, selectedFavorite, selectedUnorganized]);
 
   useEffect(() => {
     if (page > 1) {
       fetchMediaData(false);
     }
+    // fetchMediaData is intentionally omitted to avoid refetch loops; only paging should trigger this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
-
-  const loadMore = () => {
-    setPage(prev => prev + 1);
-  };
 
   // Dynamically extract distinct years from chronological records
   const getDistinctYears = () => {
@@ -603,23 +658,6 @@ export default function MediaPage() {
   };
 
   // Apple/YouTube Style Sidebar Filter Selectors
-  const selectLibraryAll = () => {
-    setSelectedType(viewMode === "photos" ? "photo" : "video");
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedCategory("");
-    setSelectedYoutubeStatus("");
-    setSelectedMemory(false);
-    setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-    setSelectedUnorganized(false);
-  };
-
   const selectLibraryPhotos = () => {
     setSelectedType("photo");
     setSelectedVolume("");
@@ -651,22 +689,6 @@ export default function MediaPage() {
     setSelectedJourneyId(null);
   };
 
-  const selectLibraryVideos = () => {
-    setSelectedType("video");
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedCategory("");
-    setSelectedYoutubeStatus("");
-    setSelectedMemory(false);
-    setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-  };
-
   const selectLibraryMemories = () => {
     setSelectedType("photo");
     setSelectedVolume("");
@@ -681,21 +703,6 @@ export default function MediaPage() {
     setSelectedFace("");
     setSelectedFavorite(false);
     setSelectedJourneyId(null);
-  };
-
-  const selectAlbum = (albumName: string) => {
-    setSelectedAlbum(albumName);
-    setSelectedVirtualAlbum("");
-    setSelectedType("photo");
-    setSelectedRawOnly(false);
-    setSelectedMemory(false);
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedCamera("");
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-    setSelectedUnorganized(false);
   };
 
   const selectVirtualAlbum = (albumName: string) => {
@@ -729,54 +736,6 @@ export default function MediaPage() {
     setTriageActive(true);
   };
 
-  const selectYoutubeReady = () => {
-    setSelectedType("video");
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedCategory("");
-    setSelectedYoutubeStatus("ready");
-    setSelectedMemory(false);
-    setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-  };
-
-  const selectYoutubeDrafts = () => {
-    setSelectedType("video");
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedCategory("");
-    setSelectedYoutubeStatus("draft");
-    setSelectedMemory(false);
-    setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-  };
-
-  const selectCategory = (cat: string) => {
-    setSelectedCategory(cat);
-    setSelectedType("video");
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedYoutubeStatus("");
-    setSelectedMemory(false);
-    setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-  };
-
   const selectCity = (city: string) => {
     setSelectedCity(city);
     setSelectedType(viewMode === "photos" ? "photo" : "video");
@@ -785,38 +744,6 @@ export default function MediaPage() {
     setSelectedYoutubeStatus("");
     setSelectedMemory(false);
     setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-  };
-
-  const selectVolume = (vol: string) => {
-    setSelectedVolume(vol);
-    setSelectedType(viewMode === "photos" ? "photo" : "video");
-    setSelectedCity("");
-    setSelectedCategory("");
-    setSelectedYoutubeStatus("");
-    setSelectedMemory(false);
-    setSelectedCamera("");
-    setSelectedAlbum("");
-    setSelectedVirtualAlbum("");
-    setSelectedRawOnly(false);
-    setSelectedFace("");
-    setSelectedFavorite(false);
-    setSelectedJourneyId(null);
-  };
-
-  const selectCamera = (cam: string) => {
-    setSelectedCamera(cam);
-    setSelectedType(viewMode === "photos" ? "photo" : "video");
-    setSelectedVolume("");
-    setSelectedCity("");
-    setSelectedCategory("");
-    setSelectedYoutubeStatus("");
-    setSelectedMemory(false);
     setSelectedAlbum("");
     setSelectedVirtualAlbum("");
     setSelectedRawOnly(false);
@@ -887,7 +814,7 @@ export default function MediaPage() {
     setCreatingAlbum(true);
     setAlbumError("");
 
-    const criteria: any = {};
+    const criteria: { camera?: string; city?: string } = {};
     if (newAlbumCriteriaType === "camera" && newAlbumCriteriaValue) {
       criteria.camera = newAlbumCriteriaValue;
     } else if (newAlbumCriteriaType === "city" && newAlbumCriteriaValue) {
@@ -918,8 +845,8 @@ export default function MediaPage() {
       
       // Refresh database records and metadata
       fetchMediaData(true);
-    } catch (e: any) {
-      setAlbumError(e.message);
+    } catch (e: unknown) {
+      setAlbumError(e instanceof Error ? e.message : String(e));
     } finally {
       setCreatingAlbum(false);
     }
@@ -987,15 +914,8 @@ export default function MediaPage() {
   };
 
   const allMediaCount = metaData?.totalFiles || 0;
-  const photoCount = metaData?.types?.find((t: any) => t.type === "photo")?.count || 0;
-  const videoCount = metaData?.types?.find((t: any) => t.type === "video")?.count || 0;
+  const photoCount = metaData?.types?.find((t) => t.type === "photo")?.count || 0;
   const memoriesCount = metaData?.memoriesCount || 0;
-  const rawCount = metaData?.rawCount || 0;
-  const screenshotsCount = metaData?.screenshotsCount || 0;
-  const aiArtCount = metaData?.aiArtCount || 0;
-  const favoriteCount = metaData?.favoriteCount || 0;
-  const youtubeReadyCount = metaData?.youtubeReadyCount || 0;
-  const youtubeDraftCount = metaData?.youtubeDraftCount || 0;
 
   // --- SLIDEBOX TRIAGE INTERFACE & MECHANICS ---
 
@@ -1009,7 +929,7 @@ export default function MediaPage() {
 
     try {
       // Find or create "Trash" virtual album
-      let trashAlbum = metaData?.virtualAlbums?.find((va: any) => va.name === "Trash");
+      const trashAlbum = metaData?.virtualAlbums?.find((va) => va.name === "Trash");
       let trashAlbumId = trashAlbum?.id;
 
       if (!trashAlbumId) {
@@ -1044,12 +964,12 @@ export default function MediaPage() {
         // Remove from local records array since it's now deleted/filed in Trash
         setRecords(prev => prev.filter(r => r.id !== currentRecord.id));
         setTotalCount(prev => Math.max(0, prev - 1));
-        setMetaData((prev: any) => {
+        setMetaData((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             unorganizedCount: Math.max(0, (prev.unorganizedCount || 0) - 1),
-            virtualAlbums: prev.virtualAlbums ? prev.virtualAlbums.map((va: any) => 
+            virtualAlbums: prev.virtualAlbums ? prev.virtualAlbums.map((va) =>
               va.id === trashAlbumId ? { ...va, count: va.count + 1 } : va
             ) : []
           };
@@ -1058,8 +978,8 @@ export default function MediaPage() {
         setIsSwiping(false);
       }, 250);
 
-    } catch (err: any) {
-      alert(`Error during deletion: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Error during deletion: ${err instanceof Error ? err.message : String(err)}`);
       setSwipeDirection(null);
       setIsSwiping(false);
     }
@@ -1115,12 +1035,12 @@ export default function MediaPage() {
         }
 
         // Locally update folder count
-        setMetaData((prev: any) => {
+        setMetaData((prev) => {
           if (!prev || !prev.virtualAlbums) return prev;
           return {
             ...prev,
             unorganizedCount: (prev.unorganizedCount || 0) + 1,
-            virtualAlbums: prev.virtualAlbums.map((va: any) => 
+            virtualAlbums: prev.virtualAlbums.map((va) =>
               va.id === lastAction.albumId ? { ...va, count: Math.max(0, va.count - 1) } : va
             )
           };
@@ -1153,15 +1073,15 @@ export default function MediaPage() {
         setIsSwiping(false);
       }, 250);
 
-    } catch (err: any) {
-      alert(`Error during Undo: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Error during Undo: ${err instanceof Error ? err.message : String(err)}`);
       setSwipeDirection(null);
       setIsSwiping(false);
     }
   };
 
   // Folder Tap Filing helper
-  const handleTriageFolderTap = async (album: any) => {
+  const handleTriageFolderTap = async (album: VirtualAlbum) => {
     if (isSwiping || records.length === 0 || triageIndex >= records.length) return;
     const currentRecord = records[triageIndex];
 
@@ -1191,12 +1111,12 @@ export default function MediaPage() {
         // Remove from local records array (filed and organized!)
         setRecords(prev => prev.filter(r => r.id !== currentRecord.id));
         setTotalCount(prev => Math.max(0, prev - 1));
-        setMetaData((prev: any) => {
+        setMetaData((prev) => {
           if (!prev || !prev.virtualAlbums) return prev;
           return {
             ...prev,
             unorganizedCount: Math.max(0, (prev.unorganizedCount || 0) - 1),
-            virtualAlbums: prev.virtualAlbums.map((va: any) => 
+            virtualAlbums: prev.virtualAlbums.map((va) =>
               va.id === album.id ? { ...va, count: va.count + 1 } : va
             )
           };
@@ -1205,8 +1125,8 @@ export default function MediaPage() {
         setIsSwiping(false);
       }, 200);
 
-    } catch (err: any) {
-      alert(`Error filing to folder: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Error filing to folder: ${err instanceof Error ? err.message : String(err)}`);
       setSwipeDirection(null);
       setIsSwiping(false);
     }
@@ -1251,6 +1171,8 @@ export default function MediaPage() {
     
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+    // handleTriage* handlers are non-memoized closures; the state they read is already listed as deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triageActive, triageIndex, records, triageUndoStack, isSwiping, metaData]);
 
   // Main UI Renderer for Triage Deck
@@ -1260,18 +1182,18 @@ export default function MediaPage() {
 
     // Filter virtual albums to find only the manual Folders, sorted alphabetically
     const manualFolders = (metaData?.virtualAlbums || [])
-      .filter((va: any) => {
+      .filter((va) => {
         try {
           const crit = JSON.parse(va.criteria_json || '{}');
           return (crit.source === 'ApplePhotos' || va.criteria_json === '{}' || !crit.source) && va.name !== 'Trash';
-        } catch (e) {
+        } catch {
           return va.name !== 'Trash';
         }
       })
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     // Filter folder list based on search query
-    const filteredFolders = manualFolders.filter((folder: any) =>
+    const filteredFolders = manualFolders.filter((folder) =>
       folder.name.toLowerCase().includes(folderFilter.toLowerCase())
     );
 
@@ -1378,7 +1300,8 @@ export default function MediaPage() {
                   >
                     {/* Streaming viewport image */}
                     <div className="flex-1 w-full h-full relative overflow-hidden bg-black flex items-center justify-center p-2">
-                      <img 
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         src={`/api/media/stream?id=${record.id}`}
                         alt={record.filename}
                         className="max-w-full max-h-full object-contain select-none pointer-events-none rounded-xl"
@@ -1511,7 +1434,7 @@ export default function MediaPage() {
                   {/* Alphabetical list grid */}
                   <div className="flex-1 overflow-y-auto no-scrollbar pr-0.5 space-y-1">
                     {filteredFolders.length > 0 ? (
-                      filteredFolders.map((folder: any, idx: number) => (
+                      filteredFolders.map((folder, idx) => (
                         <button
                           key={idx}
                           onClick={() => handleTriageFolderTap(folder)}
@@ -1529,7 +1452,7 @@ export default function MediaPage() {
                     ) : (
                       <div className="h-32 flex flex-col items-center justify-center text-center p-4 border border-dashed border-white/[0.04] rounded-2xl">
                         <FolderOpen size={20} className="text-text-dim mb-1.5" />
-                        <span className="text-[10px] text-text-muted font-semibold italic">No folders match "{folderFilter}"</span>
+                        <span className="text-[10px] text-text-muted font-semibold italic">No folders match &quot;{folderFilter}&quot;</span>
                       </div>
                     )}
                   </div>
@@ -1601,7 +1524,7 @@ export default function MediaPage() {
       const height = 360;
       const padding = 30;
 
-      const projectedPoints = coords.map(([lat, lng]: [number, number], idx: number) => {
+      const projectedPoints = coords.map(([lat, lng]: [number, number]) => {
         // Simple linear interpolation to fit bounds
         const x = padding + ((lng - minLng) / lngRange) * (width - 2 * padding);
         // Invert Y axis for screen space
@@ -1611,8 +1534,8 @@ export default function MediaPage() {
         let cityName = "";
         let dayIndex = 1;
         
-        journeyDetails.itinerary.forEach((day: any) => {
-          day.photos.forEach((p: any) => {
+        journeyDetails.itinerary.forEach((day) => {
+          day.photos.forEach((p) => {
             if (p.lat === lat && p.lng === lng && p.city) {
               cityName = p.city;
               dayIndex = day.dayIndex;
@@ -1624,7 +1547,7 @@ export default function MediaPage() {
       });
 
       // Construct SVG line data path
-      const pathData = projectedPoints.map((p: any, i: number) => 
+      const pathData = projectedPoints.map((p, i) =>
         `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
       ).join(" ");
 
@@ -1635,7 +1558,7 @@ export default function MediaPage() {
 
     const handleSaveDayReflections = async (dayIndex: number, triggerAI: boolean) => {
       setSavingNarrative(prev => ({ ...prev, [dayIndex]: true }));
-      const day = journeyDetails.itinerary.find((d: any) => d.dayIndex === dayIndex);
+      const day = journeyDetails.itinerary.find((d) => d.dayIndex === dayIndex);
       
       try {
         const res = await fetch("/api/media/chronicles", {
@@ -1647,10 +1570,10 @@ export default function MediaPage() {
             essence: essences[dayIndex] || "",
             manual_prose: manualProses[dayIndex] || "",
             triggerAI,
-            dateStr: day.date,
-            cities: day.cities,
-            people: day.people,
-            vitals: day.vitals
+            dateStr: day?.date,
+            cities: day?.cities,
+            people: day?.people,
+            vitals: day?.vitals
           })
         });
 
@@ -1660,14 +1583,14 @@ export default function MediaPage() {
         }
 
         // Update local journey details state with new narrative
-        const updatedItinerary = journeyDetails.itinerary.map((d: any) => {
+        const updatedItinerary = journeyDetails.itinerary.map((d) => {
           if (d.dayIndex === dayIndex) {
             return {
               ...d,
               narrative: {
                 essence: essences[dayIndex] || "",
                 manual_prose: manualProses[dayIndex] || "",
-                ai_narrative: triggerAI ? data.ai_narrative : d.narrative.ai_narrative
+                ai_narrative: triggerAI ? data.ai_narrative : d.narrative?.ai_narrative
               }
             };
           }
@@ -1679,8 +1602,8 @@ export default function MediaPage() {
           itinerary: updatedItinerary
         });
 
-      } catch (e: any) {
-        alert(e.message);
+      } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : String(e));
       } finally {
         setSavingNarrative(prev => ({ ...prev, [dayIndex]: false }));
       }
@@ -1726,7 +1649,7 @@ export default function MediaPage() {
                   />
                 )}
 
-                {projectedPoints.map((pt: any, idx: number) => {
+                {projectedPoints.map((pt, idx) => {
                   const hasLabel = !!pt.cityName;
                   if (!hasLabel && idx !== 0 && idx !== projectedPoints.length - 1) return null;
                   
@@ -1804,7 +1727,7 @@ export default function MediaPage() {
 
           {/* Day-by-Day scroll list */}
           <div className="space-y-12">
-            {journeyDetails.itinerary.map((day: any) => {
+            {journeyDetails.itinerary.map((day) => {
               const charCount = (essences[day.dayIndex] || "").length;
               const isOverLimit = charCount > 30;
 
@@ -1871,17 +1794,18 @@ export default function MediaPage() {
                       className="flex items-center gap-3 overflow-x-auto py-1 no-scrollbar shrink-0 select-none cursor-grab active:cursor-grabbing"
                       style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
                     >
-                      {day.photos.map((record: any) => {
+                      {day.photos.map((record) => {
                         const absoluteIndex = records.findIndex(r => r.id === record.id);
                         return (
-                          <div 
-                            key={record.id} 
+                          <div
+                            key={record.id}
                             onClick={() => { if (absoluteIndex !== -1) setLightboxIndex(absoluteIndex); }}
                             className="w-[110px] aspect-square rounded-lg overflow-hidden border border-white/[0.04] shrink-0 hover:scale-103 hover:border-accent/30 transition-all duration-200 cursor-pointer bg-background"
                           >
-                            <img 
-                              src={`/api/media/stream?id=${record.id}`} 
-                              alt={record.filename} 
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/media/stream?id=${record.id}`}
+                              alt={record.filename}
                               className="w-full h-full object-cover"
                               loading="lazy"
                             />
@@ -2006,7 +1930,7 @@ export default function MediaPage() {
       {!loading && metaData && (
         <div className="grid grid-cols-4 gap-4 px-6 py-4 shrink-0 border-b" style={{ borderColor: "var(--color-border)", background: "var(--color-background-elevated)" }}>
           {[
-            { label: "Total Storage Volume", value: formatBytes(metaData.totalBytes), icon: Database, color: "#3b82f6" },
+            { label: "Total Storage Volume", value: formatBytes(metaData.totalBytes ?? 0), icon: Database, color: "#3b82f6" },
             { label: "Total Indexed Media", value: allMediaCount.toLocaleString(), icon: File, color: "#a855f7" },
             { label: "AI Captioned Memories", value: memoriesCount.toLocaleString(), icon: Sparkles, color: "#f97316" },
             { label: "Geotagged Locations", value: metaData.geotagged?.toLocaleString() || "0", icon: MapPin, color: "#34d399" },
@@ -2080,15 +2004,15 @@ export default function MediaPage() {
               {/* Folders Section */}
               {(() => {
                 const manualAlbums = (metaData?.virtualAlbums || [])
-                  .filter((va: any) => {
+                  .filter((va) => {
                     try {
                       const crit = JSON.parse(va.criteria_json || '{}');
                       return (crit.source === 'ApplePhotos' || va.criteria_json === '{}' || !crit.source) && va.name !== 'Trash';
-                    } catch (e) {
+                    } catch {
                       return va.name !== 'Trash';
                     }
                   })
-                  .sort((a: any, b: any) => a.name.localeCompare(b.name));
+                  .sort((a, b) => a.name.localeCompare(b.name));
 
                 return (
                   <SidebarSection 
@@ -2096,8 +2020,8 @@ export default function MediaPage() {
                     isOpen={albumsOpen} 
                     onToggle={() => setAlbumsOpen(!albumsOpen)}
                   >
-                    {manualAlbums.map((va: any, i: number) => (
-                      <SidebarItem 
+                    {manualAlbums.map((va, i) => (
+                      <SidebarItem
                         key={i}
                         icon={Folder}
                         label={va.name}
@@ -2282,7 +2206,7 @@ export default function MediaPage() {
                             }
                           }
                         },
-                        ...(metaData?.people?.slice(0, 3).map((p: any) => ({
+                        ...(metaData?.people?.slice(0, 3).map((p) => ({
                           label: `👤 ${p.name}`,
                           active: selectedFace === p.name,
                           onClick: () => {
@@ -2293,7 +2217,7 @@ export default function MediaPage() {
                             }
                           }
                         })) || []),
-                        ...(metaData?.cities?.slice(0, 2).map((c: any) => ({
+                        ...(metaData?.cities?.slice(0, 2).map((c) => ({
                           label: `📍 ${c.city}`,
                           active: selectedCity === c.city,
                           onClick: () => {
@@ -2517,7 +2441,7 @@ export default function MediaPage() {
                     }}
                   >
                     <option value="" className="bg-background">Select a camera...</option>
-                    {metaData.cameras.map((c: any, idx: number) => (
+                    {metaData.cameras.map((c, idx) => (
                       <option key={idx} value={c.camera} className="bg-background">{c.camera} ({c.count} items)</option>
                     ))}
                   </select>
@@ -2538,7 +2462,7 @@ export default function MediaPage() {
                     }}
                   >
                     <option value="" className="bg-background">Select a city...</option>
-                    {metaData.cities.map((c: any, idx: number) => (
+                    {metaData.cities.map((c, idx) => (
                       <option key={idx} value={c.city} className="bg-background">{c.city}, {c.country} ({c.count} items)</option>
                     ))}
                   </select>

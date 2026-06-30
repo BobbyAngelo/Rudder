@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { getDB } from "@/lib/db";
 import { parseFile } from "@/lib/ingest/parse";
+import { invalidateContextChunks } from "@/lib/rag";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
@@ -61,16 +63,17 @@ export async function POST(req: Request) {
       );
     }
 
+    invalidateContextChunks();
     return NextResponse.json({
       success: true,
       eventId,
       fileName,
       message: "File ingested successfully as observation node."
     });
-  } catch (error: any) {
-    console.error("File ingestion error:", error);
+  } catch (error) {
+    log.error("File ingestion error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to ingest file." },
+      { success: false, error: "Failed to ingest file." },
       { status: 500 }
     );
   }

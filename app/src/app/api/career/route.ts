@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
+import { log } from "@/lib/logger";
+import {
+  countTimeline,
+  listTimeline,
+  listSkills,
+  listAwards,
+  listOriginalIp,
+  listJobApplications,
+  seedTimeline,
+  seedSkill,
+  seedAward,
+  seedOriginalIp,
+  seedJobApplication,
+} from "@/lib/db/career";
 import fs from "fs";
 import path from "path";
 
 export async function GET() {
   try {
-    const db = getDB();
-
     /* 1. CHECK IF SEEDING IS NEEDED */
-    const timelineCount = db.prepare("SELECT COUNT(*) as count FROM career_timeline").get() as any;
-    
-    if (timelineCount && timelineCount.count === 0) {
+    if (countTimeline() === 0) {
       /* Read legacy career-data.json to seed the tables */
       const filePath = path.join(process.cwd(), "..", "data", "writing", "career-data.json");
       if (fs.existsSync(filePath)) {
@@ -18,73 +27,77 @@ export async function GET() {
         const jsonData = JSON.parse(rawData);
 
         /* A. Seed career_timeline */
-        const insertTimeline = db.prepare(`
-          INSERT INTO career_timeline (company, title, division, start_date, end_date, highlights_json)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `);
         for (const item of jsonData.career_timeline || []) {
-          insertTimeline.run(
-            item.company,
-            item.title,
-            item.division || null,
-            item.start,
-            item.end,
-            JSON.stringify(item.highlights || [])
-          );
+          seedTimeline({
+            company: item.company,
+            title: item.title,
+            division: item.division || null,
+            start: item.start,
+            end: item.end,
+            highlights: item.highlights || [],
+          });
         }
 
         /* B. Seed career_skills */
-        const insertSkill = db.prepare(`
-          INSERT OR IGNORE INTO career_skills (category, skill_name)
-          VALUES (?, ?)
-        `);
         const skillsObj = jsonData.skills || {};
         for (const cat of ["creative", "production", "technical", "tools"]) {
           for (const s of skillsObj[cat] || []) {
-            insertSkill.run(cat, s);
+            seedSkill({ category: cat, skill_name: s });
           }
         }
 
         /* C. Seed career_awards */
-        const insertAward = db.prepare(`
-          INSERT INTO career_awards (award_type, title, project, org, year, result)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `);
         const emmys = jsonData.awards?.emmys || [];
         for (const em of emmys) {
-          insertAward.run("emmy", em.category || "Outstanding Creative Achievement", em.show, "Television Academy", em.year, em.result);
+          seedAward({
+            award_type: "emmy",
+            title: em.category || "Outstanding Creative Achievement",
+            project: em.show,
+            org: "Television Academy",
+            year: em.year,
+            result: em.result,
+          });
         }
         const otherAwards = jsonData.awards?.other || [];
         for (const ot of otherAwards) {
-          insertAward.run("other", ot.title, ot.project, ot.org, ot.year || null, "WON");
+          seedAward({
+            award_type: "other",
+            title: ot.title,
+            project: ot.project,
+            org: ot.org,
+            year: ot.year || null,
+            result: "WON",
+          });
         }
 
         /* D. Seed career_original_ip */
-        const insertIP = db.prepare(`
-          INSERT OR IGNORE INTO career_original_ip (title, format, pitched_to, status)
-          VALUES (?, ?, ?, ?)
-        `);
         for (const ip of jsonData.original_ip || []) {
-          insertIP.run(ip.title, ip.format, ip.pitched_to || null, ip.status);
+          seedOriginalIp({
+            title: ip.title,
+            format: ip.format,
+            pitched_to: ip.pitched_to || null,
+            status: ip.status,
+          });
         }
 
         /* E. Seed career_job_applications */
-        const insertApp = db.prepare(`
-          INSERT INTO career_job_applications (company, role, year, docs_json)
-          VALUES (?, ?, ?, ?)
-        `);
         for (const app of jsonData.job_applications || []) {
-          insertApp.run(app.company, app.role, app.year, JSON.stringify(app.docs || []));
+          seedJobApplication({
+            company: app.company,
+            role: app.role,
+            year: app.year,
+            docs: app.docs || [],
+          });
         }
       }
     }
 
     /* 2. FETCH FROM SQLITE DATABASE */
-    const timeline = db.prepare("SELECT * FROM career_timeline ORDER BY start_date DESC").all() as any[];
-    const skills = db.prepare("SELECT * FROM career_skills").all() as any[];
-    const awards = db.prepare("SELECT * FROM career_awards").all() as any[];
-    const originalIp = db.prepare("SELECT * FROM career_original_ip").all() as any[];
-    const jobApplications = db.prepare("SELECT * FROM career_job_applications").all() as any[];
+    const timeline = listTimeline();
+    const skills = listSkills();
+    const awards = listAwards();
+    const originalIp = listOriginalIp();
+    const jobApplications = listJobApplications();
 
     /* Format back to expected JSON structure */
     const structuredTimeline = timeline.map(t => ({
@@ -187,8 +200,8 @@ export async function GET() {
     };
 
     return NextResponse.json(responsePayload);
-  } catch (error: any) {
-    console.error("[api/career] GET error:", error);
-    return NextResponse.json({ error: error.message || "Failed to load career data from SQLite" }, { status: 500 });
+  } catch (error) {
+    log.error("[api/career] GET error:", error);
+    return NextResponse.json({ error: "Failed to load career data from SQLite" }, { status: 500 });
   }
 }

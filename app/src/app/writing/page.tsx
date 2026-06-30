@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   PenTool, Plus, Search, FileText, Loader2, Save, BookOpen, Zap, Mic, Film,
   StickyNote, LayoutList, MessageSquare, Bot, Send, Maximize2, Minimize2,
-  Type, Sliders, Play, Trash2, Eye, HelpCircle, Check, Sparkles, X, Folder,
-  FolderOpen, ChevronRight, ChevronDown, Clock, Printer, Activity, Brain
+  Type, Trash2, Eye, Check, Sparkles, X, Folder,
+  FolderOpen, ChevronRight, ChevronDown, Printer, Brain
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
@@ -42,7 +42,6 @@ interface CharacterProfile {
 }
 
 const SECTION_COLOR = "#f59e0b"; // Golden/Amber for creative work
-const SECTION_BG_COLOR = "rgba(245, 158, 11, 0.1)";
 
 const MODE_ICONS: Record<string, React.ElementType> = {
   journal: BookOpen,
@@ -141,7 +140,7 @@ function parseFountainToHtml(text: string): string {
 export default function WritingPage() {
   // Library States
   const [entries, setEntries] = useState<EntryListItem[]>([]);
-  const [modes, setModes] = useState<{ mode: string; count: number }[]>([]);
+  const [, setModes] = useState<{ mode: string; count: number }[]>([]);
   const [filterMode, setFilterMode] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -167,7 +166,7 @@ export default function WritingPage() {
 
   // Formatting & Preview states
   const [fontFamily, setFontFamily] = useState<"serif" | "sans" | "mono">("serif");
-  const [fontSize, setFontSize] = useState<number>(18);
+  const [fontSize] = useState<number>(18);
   const [showPreview, setShowPreview] = useState(false);
   
   // Word Goal states
@@ -226,6 +225,7 @@ export default function WritingPage() {
   // Load word goal from localstorage on mount
   useEffect(() => {
     const savedGoal = localStorage.getItem("rudder_writing_word_goal");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate persisted goal from localStorage once on mount
     if (savedGoal) setWordGoal(parseInt(savedGoal));
   }, []);
 
@@ -250,6 +250,7 @@ export default function WritingPage() {
   }, [filterMode]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch; setState runs after await, not synchronously
     fetchEntries();
   }, [fetchEntries]);
 
@@ -493,6 +494,7 @@ export default function WritingPage() {
       }, 1000);
     }
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 1s tick driven only by sprintState/sprintTimeLeft; adding editContent/sprintStartWords/sprintTimeLimit would restart the timer on every keystroke
   }, [sprintState, sprintTimeLeft]);
 
   // Sprint game trigger functions
@@ -583,7 +585,7 @@ export default function WritingPage() {
     if (action === "novel_analyze" && activeEntry) {
       // Gather novel details
       const characterList = activeEntry.meta_json 
-        ? JSON.parse(activeEntry.meta_json).characters?.map((c: any) => `${c.name} (${c.role}): ${c.bio} [Traits: ${c.traits}]`).join("\n")
+        ? (JSON.parse(activeEntry.meta_json).characters as CharacterProfile[] | undefined)?.map((c) => `${c.name} (${c.role}): ${c.bio} [Traits: ${c.traits}]`).join("\n")
         : "None declared";
       textPayload = `[Draft Scene/Chapter]\n${editContent}\n\n[Plot Outline]\n${novelOutline}\n\n[Character Profiles]\n${characterList}`;
     }
@@ -812,6 +814,7 @@ export default function WritingPage() {
     } catch {
       return { characters: [] };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `dirty` kept intentionally to re-read meta_json after in-place saves; harmless extra recompute
   }, [activeEntry, editMode, dirty]);
 
   const addCharacterProfile = () => {
@@ -1352,7 +1355,7 @@ export default function WritingPage() {
                     {sprintPrompt && (
                       <div className="p-3 bg-surface border border-border rounded-xl text-xs leading-relaxed text-text-secondary italic relative">
                         <span className="text-[8px] uppercase tracking-wider font-bold text-amber-500 block mb-1">Creative Kickstart prompt</span>
-                        "{sprintPrompt}"
+                        &quot;{sprintPrompt}&quot;
                         <button onClick={() => setSprintPrompt("")} className="absolute top-2 right-2 text-text-muted hover:text-text-secondary"><X size={12} /></button>
                       </div>
                     )}
@@ -1667,7 +1670,7 @@ export default function WritingPage() {
                             <div className="text-center py-10 space-y-2">
                               <Bot size={28} className="mx-auto text-amber-500" />
                               <p className="text-[11px] px-4 leading-normal text-text-secondary">
-                                I am Robert's biographer. Speak to me to automatically record transcripts and memories.
+                                I am Robert&apos;s biographer. Speak to me to automatically record transcripts and memories.
                               </p>
                             </div>
                           )}
@@ -1910,7 +1913,7 @@ export default function WritingPage() {
             <PenTool size={36} className="mx-auto mb-4 text-amber-500 animate-pulse" />
             <h2 className="text-base font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>The Zenith Canvas</h2>
             <p className="text-xs mb-4 text-text-muted">
-              Welcome to Sovereign User's distraction-free writing environment. Create a new document or folder, or select an existing draft.
+              Welcome to Sovereign User&apos;s distraction-free writing environment. Create a new document or folder, or select an existing draft.
             </p>
             <div className="flex gap-2 justify-center">
               <button 

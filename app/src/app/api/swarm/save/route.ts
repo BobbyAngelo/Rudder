@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 import { getDB } from "@/lib/db";
 
 // Rule: Zero em-dashes (— or –).
@@ -11,8 +12,9 @@ function cleanEmDashes(text: string | null | undefined): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    let { title, content, mode = "journal", tags = ["swarm", "draft"] } = body;
+    const body = await req.json() as { title?: string; content?: string; mode?: string; tags?: string[] };
+    let { title, content } = body;
+    const { mode = "journal", tags = ["swarm", "draft"] } = body;
 
     if (!content) {
       return NextResponse.json({ success: false, error: "Content is required to save a draft." }, { status: 400 });
@@ -53,8 +55,8 @@ export async function POST(req: NextRequest) {
       title,
       wordCount
     });
-  } catch (err: any) {
-    console.error("[api/swarm/save] POST error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/swarm/save] POST error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { ComponentType } from "react";
 import { Server, Monitor, Cpu, Radio, Database } from "lucide-react";
 import { WidgetCard } from "./WidgetCard";
 
@@ -14,8 +15,18 @@ interface ClusterNode {
   status: string;
 }
 
+interface FleetNode {
+  id: string;
+  name: string;
+  type: string;
+  ip: string;
+  icon: ComponentType<{ size?: number | string }>;
+  status: "online" | "offline";
+  ping: string | null;
+}
+
 export function WidgetFleet() {
-  const [nodes, setNodes] = useState<any[]>([]);
+  const [nodes, setNodes] = useState<FleetNode[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

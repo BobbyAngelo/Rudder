@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { compileHarnessContext } from "@/lib/harness";
+import { log } from "@/lib/logger";
+import { getCorrespondence } from "@/lib/db/correspondence";
+import { compileHarnessContext, type CompiledHarness } from "@/lib/harness";
 import { ollamaChat, ollamaStatus } from "@/lib/ollama";
 
 // Helper to remove any em-dashes from strings
@@ -13,7 +14,6 @@ function cleanEmDashes(text: string | null | undefined): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDB();
     const bodyData = await req.json();
     const { messageId, harnessSlug } = bodyData;
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Fetch message from database
-    const message = db.prepare("SELECT * FROM correspondence WHERE id = ?").get(messageId) as any;
+    const message = getCorrespondence(messageId);
     if (!message) {
       return NextResponse.json({ success: false, error: "Correspondence message not found" }, { status: 404 });
     }
@@ -43,11 +43,11 @@ export async function POST(req: NextRequest) {
     const model = status.models.includes("llama3.2:latest") ? "llama3.2:latest" : (status.models[0] || "llama3.2:latest");
 
     // 3. Compile context harness
-    let harnessContext;
+    let harnessContext: CompiledHarness;
     try {
       harnessContext = compileHarnessContext(harnessSlug);
-    } catch (e: any) {
-      return NextResponse.json({ success: false, error: `Failed to compile harness context: ${e.message}` }, { status: 404 });
+    } catch {
+      return NextResponse.json({ success: false, error: `Failed to compile harness context` }, { status: 404 });
     }
 
     // 4. Invoke Ollama to generate reply draft
@@ -83,8 +83,8 @@ Write a direct, professional reply draft matching Robert's voice:`;
       model,
       harness_slug: harnessSlug
     });
-  } catch (err: any) {
-    console.error("[api/correspondence/draft] POST error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err) {
+    log.error("[api/correspondence/draft] POST error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

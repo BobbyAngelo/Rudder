@@ -2,16 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Check, 
-  Activity, 
-  Brain, 
-  Cpu, 
-  Terminal, 
-  Users, 
-  Heart, 
-  User, 
-  Sparkles, 
+import {
+  Check,
+  Activity,
+  Cpu,
+  Heart,
   Calendar,
   AlertCircle,
   FileText,
@@ -102,7 +97,7 @@ export default function OnboardingPage() {
         setClusterNames(names);
         setClusterRelationships(rels);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to fetch insights:", err);
     } finally {
       setLoadingInsights(false);
@@ -132,7 +127,7 @@ export default function OnboardingPage() {
       /* Refresh insights to sync names */
       await fetchInsights();
       setStep(3);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save face links:", err);
     } finally {
       setSavingClusters(false);
@@ -169,9 +164,9 @@ export default function OnboardingPage() {
         const errData = await res.json();
         setErrorMsg(errData.error || "Generation failed.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearInterval(interval);
-      setErrorMsg(err.message || "An unexpected error occurred.");
+      setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setGeneratingBio(false);
     }
@@ -324,7 +319,7 @@ export default function OnboardingPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {insights?.fivePeople.map((p, idx) => {
+                {insights?.fivePeople.map((p) => {
                   const initials = p.clusterLabel.replace("cluster_", "C");
                   const hasDBName = p.name !== "Unrecognized Face" && p.name !== "";
                   

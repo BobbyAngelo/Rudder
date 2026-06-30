@@ -25,13 +25,6 @@ interface ClaudeMessage {
   created_at?: string;
 }
 
-interface ClaudeConversation {
-  uuid?: string;
-  name?: string;
-  created_at?: string;
-  chat_messages?: ClaudeMessage[];
-}
-
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -59,23 +52,25 @@ export function parseClaudeExport(text: string): RawDoc[] {
   conversations.forEach((conv: unknown, index: number) => {
     if (!isRecord(conv)) return;
 
-    const messages = Array.isArray(conv.chat_messages) ? conv.chat_messages : [];
+    const messages: ClaudeMessage[] = Array.isArray(conv.chat_messages)
+      ? (conv.chat_messages as ClaudeMessage[])
+      : [];
     if (!messages.length) return;
 
     const title = (conv.name as string)?.trim() || "(untitled Claude conversation)";
     const sourceId = (conv.uuid as string)?.trim() || `claude-${index}`;
     
     // Sort messages by created_at if available
-    const sortedMessages = [...messages].sort((a: any, b: any) => {
+    const sortedMessages = [...messages].sort((a, b) => {
       const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
       const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
       return aTime - bTime;
     });
 
     const body = sortedMessages
-      .map((msg: any) => {
+      .map((msg) => {
         const sender = normalizeRole(msg.sender || "human");
-        const textVal = (msg.text as string) || "";
+        const textVal = msg.text || "";
         return `${sender}: ${textVal}`;
       })
       .join("\n\n")

@@ -1,12 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serverError } from "@/lib/api-error";
 import { getDB } from "@/lib/db";
+
+interface CountRow {
+  count: number;
+}
+
+interface IdRow {
+  id: number;
+}
+
+interface HealthAvgRow {
+  avg_sleep: number;
+  avg_hr: number;
+  avg_hrv: number;
+}
+
+interface FacePersonRow {
+  id: number;
+  cluster_label: string;
+  representative_photo: string | null;
+  photo_count: number;
+  person_id: number | null;
+  person_name: string | null;
+  relationship_type: string | null;
+}
 
 export async function GET() {
   try {
     const db = getDB();
 
     /* 1. SEED DATA IF NEEDED */
-    const evCount = db.prepare("SELECT COUNT(*) as count FROM calendar_events").get() as any;
+    const evCount = db.prepare("SELECT COUNT(*) as count FROM calendar_events").get() as CountRow | undefined;
     if (evCount && evCount.count === 0) {
       const busyEvents = [
         { title: "Porsche Launch Sync", category: "work", start_date: "2026-04-06" },
@@ -58,7 +83,7 @@ export async function GET() {
       let sleep = 6.5;
       let hr = 62;
       let hrv = 45;
-      let steps = 4000 + Math.floor(Math.random() * 5000);
+      const steps = 4000 + Math.floor(Math.random() * 5000);
 
       if (d >= 13 && d <= 19) {
         sleep = 8.1 + (d % 3) * 0.2;
@@ -82,10 +107,10 @@ export async function GET() {
     }
 
     /* Seed face clusters and photos */
-    const clusterCount = db.prepare("SELECT COUNT(*) as count FROM face_clusters").get() as any;
+    const clusterCount = db.prepare("SELECT COUNT(*) as count FROM face_clusters").get() as CountRow | undefined;
     if (clusterCount && clusterCount.count === 0) {
-      const aaron = db.prepare("SELECT id FROM people WHERE name = 'Aaron McKenzie'").get() as any;
-      const steven = db.prepare("SELECT id FROM people WHERE name = 'Steven Calcote'").get() as any;
+      const aaron = db.prepare("SELECT id FROM people WHERE name = 'Aaron McKenzie'").get() as IdRow | undefined;
+      const steven = db.prepare("SELECT id FROM people WHERE name = 'Steven Calcote'").get() as IdRow | undefined;
       const aaronId = aaron ? aaron.id : 1;
       const stevenId = steven ? steven.id : 9;
 
@@ -101,7 +126,7 @@ export async function GET() {
       insertCluster.run("cluster_005", null, "/images/faces/unnamed_3.jpg", 98);
     }
 
-    const photoCount = db.prepare("SELECT COUNT(*) as count FROM media_photos").get() as any;
+    const photoCount = db.prepare("SELECT COUNT(*) as count FROM media_photos").get() as CountRow | undefined;
     if (photoCount && photoCount.count === 0) {
       const insertPhoto = db.prepare(`
         INSERT INTO media_photos (file_path, file_name, taken_at, location, faces_json)
@@ -133,20 +158,20 @@ export async function GET() {
       SELECT COUNT(*) as count 
       FROM calendar_events 
       WHERE start_date >= ? AND start_date <= ?
-    `).get(quietWeekStart, quietWeekEnd) as any;
+    `).get(quietWeekStart, quietWeekEnd) as CountRow | undefined;
 
     const quietWeekHealth = db.prepare(`
       SELECT AVG(sleep_hours) as avg_sleep, AVG(resting_hr) as avg_hr, AVG(hrv) as avg_hrv
       FROM health_metrics
       WHERE date >= ? AND date <= ?
-    `).get(quietWeekStart, quietWeekEnd) as any;
+    `).get(quietWeekStart, quietWeekEnd) as HealthAvgRow | undefined;
 
     /* General Busy Weeks average */
     const busyWeekHealth = db.prepare(`
       SELECT AVG(sleep_hours) as avg_sleep, AVG(resting_hr) as avg_hr, AVG(hrv) as avg_hrv
       FROM health_metrics
       WHERE date >= '2026-04-01' AND date <= '2026-04-30' AND (date < ? OR date > ?)
-    `).get(quietWeekStart, quietWeekEnd) as any;
+    `).get(quietWeekStart, quietWeekEnd) as HealthAvgRow | undefined;
 
     /* Five People Wow */
     const fivePeople = db.prepare(`
@@ -156,7 +181,7 @@ export async function GET() {
       LEFT JOIN people p ON fc.person_id = p.id
       ORDER BY fc.photo_count DESC
       LIMIT 5
-    `).all() as any[];
+    `).all() as FacePersonRow[];
 
     /* Format response */
     const responseData = {
@@ -191,14 +216,20 @@ export async function GET() {
     };
 
     return NextResponse.json(responseData);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
+}
+
+interface LinkClusterBody {
+  clusterLabel?: string;
+  name?: string;
+  relationship?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { clusterLabel, name, relationship } = await req.json();
+    const { clusterLabel, name, relationship } = (await req.json()) as LinkClusterBody;
 
     if (!clusterLabel || !name) {
       return NextResponse.json({ error: "Missing clusterLabel or name" }, { status: 400 });
@@ -207,7 +238,7 @@ export async function POST(req: NextRequest) {
     const db = getDB();
 
     /* Find if person with this name already exists */
-    let person = db.prepare("SELECT id FROM people WHERE name = ?").get(name) as any;
+    const person = db.prepare("SELECT id FROM people WHERE name = ?").get(name) as IdRow | undefined;
     let personId: number;
 
     if (person) {
@@ -232,8 +263,8 @@ export async function POST(req: NextRequest) {
     `).run(personId, clusterLabel);
 
     return NextResponse.json({ success: true, personId, name });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return serverError(err);
   }
 }
 

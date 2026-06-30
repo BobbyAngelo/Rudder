@@ -27,6 +27,7 @@ const MODULE_DOTS: OrbitDot[] = [
 
 export function OrbitRing({ sourcesCount }: { sourcesCount: number }) {
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount flag for hydration-safe entry animation
   useEffect(() => setMounted(true), []);
 
   const size = 240;
