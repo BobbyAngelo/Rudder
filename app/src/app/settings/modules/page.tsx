@@ -82,13 +82,13 @@ export default function ModuleManagerPage() {
             className="text-2xl font-semibold tracking-tight"
             style={{ color: "var(--color-text-primary)" }}
           >
-            Plugin Store
+            Modules
           </h1>
           <p
             className="text-sm"
             style={{ color: "var(--color-text-muted)" }}
           >
-            Install plugins to expand your engine. The system will automatically recommend plugins as you connect more data sources.
+            Manage modules to expand your engine. The system will automatically recommend modules as you connect more data sources.
           </p>
         </header>
 
@@ -102,7 +102,7 @@ export default function ModuleManagerPage() {
         >
           <span className="text-sm" style={{ color: "var(--color-text-primary)" }}>
             <span className="font-medium">{enabledModules.length}</span>
-            <span style={{ color: "var(--color-text-dim)" }}> of {MODULE_REGISTRY.length} plugins installed</span>
+            <span style={{ color: "var(--color-text-dim)" }}> of {MODULE_REGISTRY.length} modules enabled</span>
           </span>
           {lastSaved && (
             <span className="text-[10px] font-mono" style={{ color: "var(--color-text-dim)" }}>

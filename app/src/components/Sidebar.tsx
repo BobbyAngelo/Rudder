@@ -214,11 +214,11 @@ export function Sidebar() {
               </CollapsibleGroup>
             ))}
 
-            {/* ── Add Plugins ── */}
+            {/* ── Manage Modules ── */}
             <div className="pt-2 mt-2 border-t" style={{ borderColor: "var(--color-sidebar-border)" }}>
               <SidebarLink
                 href="/settings/modules"
-                label="Add Plugins"
+                label="Manage Modules"
                 icon={<Plus size={15} />}
                 active={pathname === "/settings/modules"}
                 subtle

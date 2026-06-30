@@ -174,7 +174,7 @@ export default function DashboardPage() {
                     description="Ingest photo libraries and personal hard drives."
                     examples="Google Photos Export, Local Media"
                     status="connect"
-                    unlocks="Media Plugin"
+                    unlocks="Media Module"
                   />
                 </div>
 
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                     description="Analyze your relationship graph securely."
                     examples="iMessage (Local SQLite), WhatsApp"
                     status="active"
-                    unlocks="People Plugin"
+                    unlocks="People Module"
                   />
                 </div>
 
