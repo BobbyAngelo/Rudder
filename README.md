@@ -103,15 +103,23 @@ Rudder allows you to ingest personal data archives locally. For step - by - step
 
 ```text
 Rudder/
-├── app/                    ← Next.js 16 application
+├── app/                       ← Next.js 16 application
 │   ├── src/
-│   │   ├── app/            ← Page routes (App Router)
-│   │   └── components/     ← Shared UI components
-│   └── .env.example        ← Configuration template
-├── data/                   ← Runtime data (SQLite, etc.)
-├── legacy/                 ← Previous codebase (reference)
+│   │   ├── app/api/           ← Route handlers (thin: parse → call repo → respond)
+│   │   ├── app/               ← Page routes (App Router)
+│   │   ├── components/        ← Shared UI components
+│   │   └── lib/
+│   │       ├── db/            ← Typed data-access layer (one repository per domain)
+│   │       ├── logger.ts      ← Leveled structured logger
+│   │       └── api-error.ts   ← Safe error responses (no internal leakage)
+│   └── .env.example           ← Configuration template
+├── firmware/                  ← ESP32 / Pico W telemetry reference firmware
+├── scripts/                   ← Importers, MCP, OKF, telemetry simulator
+├── data/                      ← Runtime data (SQLite, etc.; gitignored)
 └── README.md
 ```
+
+**Data-access layer.** Every API route is a thin handler that parses the request and delegates to a typed repository under `app/src/lib/db/` (`people`, `tasks`, `calendar`, `health`, etc.). Repositories own all SQL, return typed rows, and build any dynamic `UPDATE` from a fixed column allowlist (never from request keys). The codebase is `any`-free and lint-clean.
 
 ## Modules
 
@@ -127,6 +135,21 @@ Defined by the registry in `app/src/lib/modules.ts` and grouped as they appear i
 Plus the **Mission Control** dashboard as the home surface.
 
 Out of scope (slated for removal/relocation): the never-built "Money / Business / Properties / Cyrano / Analytics / Wiki" scaffolds, and the orphaned standalone `/calendar`, `/tasks`, `/habits` routes now folded into Planner.
+
+## Development & Testing
+
+```bash
+cd app
+npm run dev                  # start the dev server (http://localhost:3000)
+npm run build                # production build
+npm run lint                 # ESLint (zero-warning gate)
+npm test                     # unit + route tests (node:test via tsx)
+npm run simulate:telemetry   # post synthetic vitals to the telemetry gate
+```
+
+- **Tests** live next to the code as `*.test.ts` and run on `node:test`. Database-backed suites (repositories and the telemetry route) run against an **isolated throwaway SQLite file** via the `RUDDER_DATA_DIR` override, so they never touch your real `data/rudder.db`.
+- **CI** (`.github/workflows/ci.yml`) runs lint → tests → type-check → production build on every push and PR. Lint and type-check are hard gates; the project is currently `any`-free and lint-clean.
+- **Hardware telemetry** can be exercised end-to-end without a device using `npm run simulate:telemetry` (see [`firmware/README.md`](./firmware/README.md) for the contract, reference ESP32/Pico W firmware, and the device-token setup).
 
 ## Stack
 
@@ -146,4 +169,4 @@ Out of scope (slated for removal/relocation): the never-built "Money / Business 
 
 ## License
 
-MIT
+**MIT** — Rudder is open source and for the people. Sovereignty isn't a premium tier; the core is free and open forever. See [`docs/value-proposition.md`](docs/value-proposition.md) for the positioning and how the project sustains itself without ever charging the people it serves.

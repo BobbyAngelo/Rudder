@@ -26,6 +26,7 @@ export function WidgetCorrespondence() {
   const [copied, setCopied] = useState(false);
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [sentStatus, setSentStatus] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   const fetchMessages = () => {
     setLoading(true);
@@ -85,6 +86,7 @@ export function WidgetCorrespondence() {
   };
 
   const handleSendMail = async (id: number) => {
+    setConfirmingId(null);
     setSendingId(id);
     setSentStatus(null);
     try {
@@ -290,27 +292,49 @@ export function WidgetCorrespondence() {
                               )}
 
                               {msg.platform.toLowerCase() === "email" && (
-                                <button
-                                  onClick={() => handleSendMail(msg.id)}
-                                  disabled={sendingId !== null}
-                                  className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40"
-                                  style={{
-                                    background: "var(--color-accent)",
-                                    color: "#000",
-                                  }}
-                                >
-                                  {sendingId === msg.id ? (
-                                    <>
-                                      <RefreshCw size={10} className="animate-spin" />
-                                      Sending...
-                                    </>
-                                  ) : (
-                                    <>
+                                sendingId === msg.id ? (
+                                  <button
+                                    disabled
+                                    className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold opacity-60"
+                                    style={{ background: "var(--color-accent)", color: "#000" }}
+                                  >
+                                    <RefreshCw size={10} className="animate-spin" />
+                                    Sending...
+                                  </button>
+                                ) : confirmingId === msg.id ? (
+                                  // Confirm-before-act: require an explicit confirmation before sending.
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-medium" style={{ color: "var(--color-text-muted)" }}>
+                                      Send to {msg.sender.split("@")[0]}?
+                                    </span>
+                                    <button
+                                      onClick={() => handleSendMail(msg.id)}
+                                      disabled={sendingId !== null}
+                                      className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40"
+                                      style={{ background: "var(--color-accent)", color: "#000" }}
+                                    >
                                       <Send size={10} />
-                                      Send Email
-                                    </>
-                                  )}
-                                </button>
+                                      Confirm
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmingId(null)}
+                                      className="px-2 py-1 rounded text-[10px] font-semibold border transition-all hover:bg-neutral-800"
+                                      style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmingId(msg.id)}
+                                    disabled={sendingId !== null}
+                                    className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-semibold transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40"
+                                    style={{ background: "var(--color-accent)", color: "#000" }}
+                                  >
+                                    <Send size={10} />
+                                    Send Email
+                                  </button>
+                                )
                               )}
                             </div>
                           </div>

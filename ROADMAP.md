@@ -27,9 +27,15 @@ graph TD
 ## ⚡ Phase 1: Real-World Integrations (IMMEDIATE NEXT STEPS)
 These are the immediate next steps to run and test on your local hardware:
 
-### 1. Hardware Telemetry Testing
+### 1. Hardware Telemetry Testing — 🟩 *Software complete; awaiting on-device flash*
 *   **Objective:** Stream active heart rate, steps, and sleep values from a wearable or dev board.
-*   **Task:** Flash the provided Arduino or MicroPython code template from the settings panel onto a Wi-Fi-enabled microcontroller (ESP32/Raspberry Pi Pico W) and test POSTing payload packets to `http://localhost:3000/api/ingest/telemetry`.
+*   **Shipped:**
+    *   Hardened ingest endpoint (`/api/ingest/telemetry`) with device-token auth, validation, and biometric promotion into `health_metrics`.
+    *   Reference firmware in [`firmware/`](./firmware/README.md) for **ESP32 (Arduino)** and **ESP32 / Pico W (MicroPython)**, including the device-token header and Wi-Fi setup.
+    *   A hardware-free **telemetry simulator** (`cd app && npm run simulate:telemetry`) that posts synthetic vitals using the exact device contract — supports one-shot, `--count`, and `--watch` streaming.
+    *   An automated route test covering validation, biometric promotion, metric aliases, and the device-token gate.
+    *   In-app settings snippets corrected to include the `X-Device-Token` header and a LAN host.
+*   **Remaining (you, on real hardware):** Set `RUDDER_DEVICE_TOKEN`, edit the Wi-Fi/host config in the firmware, flash an ESP32/Pico W, and confirm readings land on the Health/Hardware pages.
 
 ### 2. Ambient Voice Overlay Binding
 *   **Objective:** Bind a global macOS hotkey to display the overlay hands-free.

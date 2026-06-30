@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/rag.test.ts src/lib/db.test.ts src/lib/db/people.test.ts src/lib/db/tasks.test.ts src/lib/db/calendar.test.ts src/lib/db/health.test.ts",
+    "test": "node --import tsx --test src/lib/rag.test.ts src/lib/db.test.ts src/lib/db/people.test.ts src/lib/db/tasks.test.ts src/lib/db/calendar.test.ts src/lib/db/health.test.ts src/app/api/ingest/telemetry/route.test.ts src/lib/ingest/parse.test.ts src/app/api/correspondence/send/route.test.ts",
     "export:okf": "node --import tsx ../scripts/export-okf.ts",
     "import:okf": "node --import tsx ../scripts/import-okf.ts",
     "simulate:telemetry": "node --import tsx ../scripts/simulate-telemetry.ts",
