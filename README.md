@@ -2,16 +2,16 @@
 
 > The private memory & agent layer for your local AI. Ingest your life, ask across it with citations — 100% local.
 
-**Your personal data is scattered across the cloud and mined by tech giants.** We believe you shouldn't have to sacrifice convenience to keep your digital life private.
+**Your personal data is mined by corporate clouds and fragmented across disconnected offline apps.** We believe you shouldn't have to choose between convenience and total privacy to command your digital memory.
 
-**Rudder** is your sovereign, local-first personal operating system. It runs a private AI helper over your daily files, health stats, emails, and chats, serving as your private, long-term memory companion.
+**Rudder** is your sovereign, local-first personal operating system. It unifies your journals, correspondence, calendar, biometrics, and media under a single local retrieval layer—enabling you to query across all personal domains with verified citations, running 100% locally on your own machine.
 
 ### The PEACE Framework
-*   **Problem:** Your personal data is scattered across the cloud and mined by tech giants.
+*   **Problem:** Your personal data is mined by corporate clouds and fragmented across disconnected offline apps.
 *   **Empathy:** We believe you shouldn't have to choose between convenience and total privacy.
-*   **Answer:** Rudder runs a private AI helper over your daily files, health stats, and chats.
+*   **Answer:** Rudder unifies all personal domains under one local retrieval and citation layer.
 *   **Change:** Go from a passive data source to the sovereign master of your digital memory.
-*   **End Result:** Never worry about cloud leaks, subscription fees, or losing access to your data again.
+*   **End Result:** Cited answers across your entire digital life—100% local, with zero API or subscription fees.
 
 ### Why Rudder?
 *   **100% Local Privacy:** Your data never leaves your physical machine. No API subscriptions, no telemetry, and no corporate locks.
